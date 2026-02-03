@@ -162,8 +162,8 @@ function App() {
           )}
         </div>
 
-        <div className="bg-gray-900 px-4 pt-2" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
-          <div className="flex justify-around">
+        <nav className="bg-gray-900 shrink-0">
+          <div className="flex justify-around px-4 py-2">
             {tabs.map(tab => {
               const Icon = tab.icon;
               const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
@@ -185,7 +185,9 @@ function App() {
               );
             })}
           </div>
-        </div>
+          {/* Safe area spacer for home indicator */}
+          <div className="h-safe-b" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+        </nav>
 
         {completedWorkout && (
           <WorkoutCompleteModal
