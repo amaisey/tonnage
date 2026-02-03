@@ -182,8 +182,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-black p-6 overflow-hidden">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
-          <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/80"></div>
+          <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-65" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center">
@@ -295,8 +295,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     <div className="flex flex-col h-full bg-black relative">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80"></div>
+        <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-65" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}

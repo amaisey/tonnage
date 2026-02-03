@@ -40,8 +40,8 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
     <div className="relative flex flex-col h-full bg-black overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80"></div>
+        <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-65" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
@@ -155,8 +155,8 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Hero Header with Category Background */}
       <div className="relative h-48 overflow-hidden">
-        <img src={backgroundImage} alt="" className="w-full h-full object-cover opacity-60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+        <img src={backgroundImage} alt="" className="w-full h-full object-cover opacity-70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
         {/* Controls */}
         <div className="absolute top-4 left-4 right-4 flex justify-between">
           <button onClick={onClose} className="bg-white/10 backdrop-blur-sm w-10 h-10 rounded-full flex items-center justify-center text-white border border-white/20 hover:bg-white/20">
