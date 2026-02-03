@@ -122,7 +122,7 @@ function App() {
         {activeTab === 'history' && <HistoryScreen history={history} />}
       </div>
 
-      <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+      <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         <div className="flex justify-around">
           {tabs.map(tab => {
             const Icon = tab.icon;

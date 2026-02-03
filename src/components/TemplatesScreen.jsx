@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
@@ -304,13 +304,13 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
         {/* Breadcrumbs */}
         <div className="flex items-center gap-1 text-sm overflow-x-auto">
           {getBreadcrumbs().map((crumb, i) => (
-            <React.Fragment key={crumb.id}>
+            <Fragment key={crumb.id}>
               {i > 0 && <Icons.ChevronRight />}
               <button onClick={() => setCurrentFolderId(crumb.id)}
                 className={`px-2 py-1 rounded ${currentFolderId === crumb.id ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
                 {crumb.name === 'Root' ? 'All Templates' : crumb.name}
               </button>
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
       </div>
