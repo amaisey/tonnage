@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { NumberPad, SetInputRow, ExerciseSearchModal } from './SharedComponents';
+import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
 const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);

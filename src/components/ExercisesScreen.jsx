@@ -134,7 +134,7 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Header */}
       <div className="bg-gray-900 px-4 py-3 flex items-center justify-between border-b border-gray-800">
         <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>

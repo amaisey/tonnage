@@ -484,6 +484,38 @@ const TimerScreen = () => {
   );
 };
 
-// Workout Screen with Superset Support
+// Rest Timer Banner - shows during rest periods
+const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime, exerciseName }) => {
+  if (!isActive) return null;
 
-export { NumberPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal };
+  const progress = timeRemaining / totalTime;
+  const isUrgent = timeRemaining <= 10;
+
+  return (
+    <div className="fixed top-12 left-0 right-0 mx-auto max-w-md z-40 px-4">
+      <div className={`rounded-2xl p-4 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-white">
+            <Icons.TimerSmall />
+            <span className="text-sm font-medium">Rest Timer</span>
+          </div>
+          <span className="text-white/80 text-xs">{exerciseName}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="text-3xl font-bold text-white font-mono">{formatDuration(timeRemaining)}</div>
+            <div className="h-1.5 bg-white/30 rounded-full mt-2 overflow-hidden">
+              <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${progress * 100}%` }}></div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onAddTime} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">+30s</button>
+            <button onClick={onSkip} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">Skip</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export { NumberPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner };
