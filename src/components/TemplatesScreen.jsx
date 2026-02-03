@@ -2,6 +2,235 @@ import { useState } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
+import { ExerciseSearchModal } from './SharedComponents';
+
+// Edit Template Modal (simplified)
+const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }) => {
+  const [name, setName] = useState(template.name);
+  const [notes, setNotes] = useState(template.notes || '');
+  const [estimatedTime, setEstimatedTime] = useState(template.estimatedTime || '');
+  const [exercises, setExercises] = useState(JSON.parse(JSON.stringify(template.exercises)));
+  const [showExercisePicker, setShowExercisePicker] = useState(false);
+  const [selectedForSuperset, setSelectedForSuperset] = useState([]);
+  const [selectMode, setSelectMode] = useState(false);
+
+  // Group exercises by superset
+  const getGroupedExercises = () => {
+    const groups = [];
+    const used = new Set();
+    exercises.forEach((ex, idx) => {
+      if (used.has(idx)) return;
+      if (ex.supersetId) {
+        const supersetExercises = exercises
+          .map((e, i) => ({ exercise: e, index: i }))
+          .filter(({ exercise }) => exercise.supersetId === ex.supersetId);
+        supersetExercises.forEach(({ index }) => used.add(index));
+        groups.push({ type: 'superset', supersetId: ex.supersetId, exercises: supersetExercises });
+      } else {
+        groups.push({ type: 'single', exercise: ex, index: idx });
+        used.add(idx);
+      }
+    });
+    return groups;
+  };
+
+  const addExercises = (newExercises, asSuperset) => {
+    if (asSuperset && newExercises.length >= 2) {
+      const supersetId = `superset-${Date.now()}`;
+      const toAdd = newExercises.map(ex => ({
+        ...ex,
+        supersetId,
+        restTime: ex.restTime || 90,
+        sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
+      }));
+      setExercises([...exercises, ...toAdd]);
+    } else {
+      const toAdd = newExercises.map(ex => ({
+        ...ex,
+        restTime: ex.restTime || 90,
+        sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
+      }));
+      setExercises([...exercises, ...toAdd]);
+    }
+    setShowExercisePicker(false);
+  };
+
+  const removeExercise = (index) => {
+    setExercises(exercises.filter((_, i) => i !== index));
+    setSelectedForSuperset(selectedForSuperset.filter(i => i !== index).map(i => i > index ? i - 1 : i));
+  };
+
+  const unlinkSuperset = (index) => {
+    const updated = [...exercises];
+    updated[index] = { ...updated[index], supersetId: undefined };
+    setExercises(updated);
+  };
+
+  const toggleSelectForSuperset = (index) => {
+    if (selectedForSuperset.includes(index)) {
+      setSelectedForSuperset(selectedForSuperset.filter(i => i !== index));
+    } else {
+      setSelectedForSuperset([...selectedForSuperset, index]);
+    }
+  };
+
+  const createSuperset = () => {
+    if (selectedForSuperset.length >= 2) {
+      const supersetId = `superset-${Date.now()}`;
+      const updated = exercises.map((ex, i) =>
+        selectedForSuperset.includes(i) ? { ...ex, supersetId } : ex
+      );
+      setExercises(updated);
+      setSelectedForSuperset([]);
+      setSelectMode(false);
+    }
+  };
+
+  const groups = getGroupedExercises();
+
+  const renderExerciseCard = (exercise, index, isSuperset = false, isFirst = true, isLast = true) => {
+    const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
+    const isSelected = selectedForSuperset.includes(index);
+
+    return (
+      <div
+        key={index}
+        onClick={() => selectMode && toggleSelectForSuperset(index)}
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {isSuperset && <div className="w-1 h-8 bg-teal-500 rounded-full" />}
+            {selectMode && (
+              <div className={`w-5 h-5 rounded-full border-2 ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-gray-600'} flex items-center justify-center`}>
+                {isSelected && <Icons.Check />}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-white">{exercise.name}</span>
+                {typeInfo && (
+                  <span className={`${typeInfo.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
+                    {typeInfo.icon} {typeInfo.label}
+                  </span>
+                )}
+                {exercise.highlight && <span className="text-rose-400">⭐</span>}
+              </div>
+              <div className="text-xs text-gray-400">
+                {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
+              </div>
+            </div>
+          </div>
+          {!selectMode && (
+            <div className="flex items-center gap-1">
+              {isSuperset && (
+                <button onClick={() => unlinkSuperset(index)} className="text-teal-400 hover:text-teal-300 p-2" title="Unlink">
+                  <Icons.Link />
+                </button>
+              )}
+              <button onClick={() => removeExercise(index)} className="text-red-400 hover:text-red-300 p-2"><Icons.Trash /></button>
+            </div>
+          )}
+        </div>
+
+        {exercise.notes && (
+          <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 mt-2">
+            <div className="text-xs text-amber-400 flex items-center gap-1">
+              <span>📝</span> {exercise.notes}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+      {/* Fixed Header */}
+      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900">
+        <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
+        <h3 className="text-lg font-semibold text-white">Edit Template</h3>
+        <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
+          Save
+        </button>
+      </div>
+
+      {/* Select mode bar */}
+      {selectMode && (
+        <div className="shrink-0 p-3 bg-teal-900/50 border-b border-teal-700 flex items-center justify-between">
+          <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
+          <div className="flex gap-2">
+            <button onClick={() => { setSelectMode(false); setSelectedForSuperset([]); }} className="text-gray-400 text-sm">Cancel</button>
+            <button onClick={createSuperset} disabled={selectedForSuperset.length < 2}
+              className="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm font-medium disabled:opacity-50">
+              Link as Superset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Template name"
+          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3" />
+
+        <div className="flex gap-2 mb-3">
+          <input type="number" value={estimatedTime} onChange={e => setEstimatedTime(e.target.value)} placeholder="Est. minutes"
+            className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 text-sm" />
+          <button onClick={() => setSelectMode(!selectMode)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium ${selectMode ? 'bg-teal-600 text-white' : 'bg-gray-800 text-teal-400'}`}>
+            <Icons.Link /> Superset
+          </button>
+        </div>
+
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Workout notes (optional)"
+          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-4 text-sm resize-none h-20" />
+
+        <div className="text-sm text-gray-400 mb-3">{exercises.length} exercises</div>
+
+        {groups.map((group, gIdx) => {
+          if (group.type === 'superset') {
+            return (
+              <div key={group.supersetId} className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Icons.Link />
+                  <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
+                </div>
+                <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
+                  {group.exercises.map(({ exercise, index }, i) =>
+                    renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
+                  )}
+                </div>
+              </div>
+            );
+          }
+          return renderExerciseCard(group.exercise, group.index, false);
+        })}
+
+        <button onClick={() => setShowExercisePicker(true)}
+          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-rose-700 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
+          <Icons.Plus /> Add Exercise
+        </button>
+      </div>
+
+      {/* Fixed Footer */}
+      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900">
+        <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-gray-800 text-red-400 py-3 rounded-xl font-medium hover:bg-gray-700">
+          Delete Template
+        </button>
+      </div>
+
+      {showExercisePicker && (
+        <ExerciseSearchModal
+          exercises={allExercises}
+          onSelect={(ex) => addExercises([ex], false)}
+          onSelectMultiple={addExercises}
+          onClose={() => setShowExercisePicker(false)}
+        />
+      )}
+    </div>
+  );
+};
 
 const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises }) => {
   const [currentFolderId, setCurrentFolderId] = useState('root');
@@ -245,234 +474,5 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   );
 };
 
-// Edit Template Modal (simplified)
-const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }) => {
-  const [name, setName] = useState(template.name);
-  const [notes, setNotes] = useState(template.notes || '');
-  const [estimatedTime, setEstimatedTime] = useState(template.estimatedTime || '');
-  const [exercises, setExercises] = useState(JSON.parse(JSON.stringify(template.exercises)));
-  const [showExercisePicker, setShowExercisePicker] = useState(false);
-  const [selectedForSuperset, setSelectedForSuperset] = useState([]);
-  const [selectMode, setSelectMode] = useState(false);
-
-  // Group exercises by superset
-  const getGroupedExercises = () => {
-    const groups = [];
-    const used = new Set();
-    exercises.forEach((ex, idx) => {
-      if (used.has(idx)) return;
-      if (ex.supersetId) {
-        const supersetExercises = exercises
-          .map((e, i) => ({ exercise: e, index: i }))
-          .filter(({ exercise }) => exercise.supersetId === ex.supersetId);
-        supersetExercises.forEach(({ index }) => used.add(index));
-        groups.push({ type: 'superset', supersetId: ex.supersetId, exercises: supersetExercises });
-      } else {
-        groups.push({ type: 'single', exercise: ex, index: idx });
-        used.add(idx);
-      }
-    });
-    return groups;
-  };
-
-  const addExercises = (newExercises, asSuperset) => {
-    if (asSuperset && newExercises.length >= 2) {
-      const supersetId = `superset-${Date.now()}`;
-      const toAdd = newExercises.map(ex => ({
-        ...ex,
-        supersetId,
-        restTime: ex.restTime || 90,
-        sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
-      }));
-      setExercises([...exercises, ...toAdd]);
-    } else {
-      const toAdd = newExercises.map(ex => ({
-        ...ex,
-        restTime: ex.restTime || 90,
-        sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
-      }));
-      setExercises([...exercises, ...toAdd]);
-    }
-    setShowExercisePicker(false);
-  };
-
-  const removeExercise = (index) => {
-    setExercises(exercises.filter((_, i) => i !== index));
-    setSelectedForSuperset(selectedForSuperset.filter(i => i !== index).map(i => i > index ? i - 1 : i));
-  };
-
-  const unlinkSuperset = (index) => {
-    const updated = [...exercises];
-    updated[index] = { ...updated[index], supersetId: undefined };
-    setExercises(updated);
-  };
-
-  const toggleSelectForSuperset = (index) => {
-    if (selectedForSuperset.includes(index)) {
-      setSelectedForSuperset(selectedForSuperset.filter(i => i !== index));
-    } else {
-      setSelectedForSuperset([...selectedForSuperset, index]);
-    }
-  };
-
-  const createSuperset = () => {
-    if (selectedForSuperset.length >= 2) {
-      const supersetId = `superset-${Date.now()}`;
-      const updated = exercises.map((ex, i) =>
-        selectedForSuperset.includes(i) ? { ...ex, supersetId } : ex
-      );
-      setExercises(updated);
-      setSelectedForSuperset([]);
-      setSelectMode(false);
-    }
-  };
-
-  const groups = getGroupedExercises();
-
-  const renderExerciseCard = (exercise, index, isSuperset = false, isFirst = true, isLast = true) => {
-    const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
-    const isSelected = selectedForSuperset.includes(index);
-
-    return (
-      <div
-        key={index}
-        onClick={() => selectMode && toggleSelectForSuperset(index)}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isSuperset && <div className="w-1 h-8 bg-teal-500 rounded-full" />}
-            {selectMode && (
-              <div className={`w-5 h-5 rounded-full border-2 ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-gray-600'} flex items-center justify-center`}>
-                {isSelected && <Icons.Check />}
-              </div>
-            )}
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{exercise.name}</span>
-                {typeInfo && (
-                  <span className={`${typeInfo.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
-                    {typeInfo.icon} {typeInfo.label}
-                  </span>
-                )}
-                {exercise.highlight && <span className="text-rose-400">⭐</span>}
-              </div>
-              <div className="text-xs text-gray-400">
-                {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
-              </div>
-            </div>
-          </div>
-          {!selectMode && (
-            <div className="flex items-center gap-1">
-              {isSuperset && (
-                <button onClick={() => unlinkSuperset(index)} className="text-teal-400 hover:text-teal-300 p-2" title="Unlink">
-                  <Icons.Link />
-                </button>
-              )}
-              <button onClick={() => removeExercise(index)} className="text-red-400 hover:text-red-300 p-2"><Icons.Trash /></button>
-            </div>
-          )}
-        </div>
-
-        {exercise.notes && (
-          <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 mt-2">
-            <div className="text-xs text-amber-400 flex items-center gap-1">
-              <span>📝</span> {exercise.notes}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Fixed Header */}
-      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900">
-        <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
-        <h3 className="text-lg font-semibold text-white">Edit Template</h3>
-        <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
-          Save
-        </button>
-      </div>
-
-      {/* Select mode bar */}
-      {selectMode && (
-        <div className="shrink-0 p-3 bg-teal-900/50 border-b border-teal-700 flex items-center justify-between">
-          <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
-          <div className="flex gap-2">
-            <button onClick={() => { setSelectMode(false); setSelectedForSuperset([]); }} className="text-gray-400 text-sm">Cancel</button>
-            <button onClick={createSuperset} disabled={selectedForSuperset.length < 2}
-              className="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm font-medium disabled:opacity-50">
-              Link as Superset
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Template name"
-          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3" />
-
-        <div className="flex gap-2 mb-3">
-          <input type="number" value={estimatedTime} onChange={e => setEstimatedTime(e.target.value)} placeholder="Est. minutes"
-            className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 text-sm" />
-          <button onClick={() => setSelectMode(!selectMode)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium ${selectMode ? 'bg-teal-600 text-white' : 'bg-gray-800 text-teal-400'}`}>
-            <Icons.Link /> Superset
-          </button>
-        </div>
-
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Workout notes (optional)"
-          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-4 text-sm resize-none h-20" />
-
-        <div className="text-sm text-gray-400 mb-3">{exercises.length} exercises</div>
-
-        {groups.map((group, gIdx) => {
-          if (group.type === 'superset') {
-            return (
-              <div key={group.supersetId} className="mb-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icons.Link />
-                  <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
-                </div>
-                <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
-                  {group.exercises.map(({ exercise, index }, i) =>
-                    renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
-                  )}
-                </div>
-              </div>
-            );
-          }
-          return renderExerciseCard(group.exercise, group.index, false);
-        })}
-
-        <button onClick={() => setShowExercisePicker(true)}
-          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-rose-700 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
-          <Icons.Plus /> Add Exercise
-        </button>
-      </div>
-
-      {/* Fixed Footer */}
-      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900">
-        <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-gray-800 text-red-400 py-3 rounded-xl font-medium hover:bg-gray-700">
-          Delete Template
-        </button>
-      </div>
-
-      {showExercisePicker && (
-        <ExerciseSearchModal
-          exercises={allExercises}
-          onSelect={(ex) => addExercises([ex], false)}
-          onSelectMultiple={addExercises}
-          onClose={() => setShowExercisePicker(false)}
-        />
-      )}
-    </div>
-  );
-};
-
-// History Screen
 
 export { TemplatesScreen };
