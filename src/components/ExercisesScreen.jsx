@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
+import { workoutDb } from '../db/workoutDb';
 
 // Category to background image mapping
 const CATEGORY_BACKGROUNDS = {
@@ -17,7 +18,7 @@ const CATEGORY_BACKGROUNDS = {
   band: '/backgrounds/bg-9.jpg',
 };
 
-const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [] }) => {
+const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise }) => {
   const [search, setSearch] = useState('');
   const [selectedBodyPart, setSelectedBodyPart] = useState('All');
   const [editingExercise, setEditingExercise] = useState(null);
@@ -40,11 +41,11 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
     <div className="relative flex flex-col h-full bg-black overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-65" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
+        <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-50" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
-      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-white">Exercises</h2>
           <button onClick={() => setShowCreate(true)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800 flex items-center gap-2">
@@ -90,7 +91,6 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
       {selectedExercise && (
         <ExerciseDetailModal
           exercise={selectedExercise}
-          history={history}
           onEdit={() => { setEditingExercise(selectedExercise); setSelectedExercise(null); }}
           onClose={() => setSelectedExercise(null)}
         />
@@ -101,48 +101,79 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
 };
 
 // Exercise Detail Modal with Hero Header and Category Background
-const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
+const ExerciseDetailModal = ({ exercise, onEdit, onClose }) => {
   const [activeTab, setActiveTab] = useState('about');
-
-  // Get background image based on category
-  const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-2.jpg';
-
-  // Get all instances of this exercise from history
-  const exerciseHistory = history.flatMap(workout =>
-    workout.exercises
-      .filter(ex => ex.name === exercise.name)
-      .map(ex => ({
-        ...ex,
-        workoutDate: workout.startTime,
-        workoutName: workout.name
-      }))
-  ).sort((a, b) => b.workoutDate - a.workoutDate);
-
-  // Calculate records
-  const records = {
+  const [exerciseHistory, setExerciseHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState({
     maxWeight: 0,
     maxReps: 0,
-    maxVolume: 0, // weight × reps
+    maxVolume: 0,
     maxDuration: 0,
     maxDistance: 0,
     totalSets: 0,
     totalVolume: 0,
-  };
-
-  exerciseHistory.forEach(ex => {
-    ex.sets.filter(s => s.completed).forEach(set => {
-      records.totalSets++;
-      if (set.weight) {
-        records.maxWeight = Math.max(records.maxWeight, set.weight);
-        const volume = (set.weight || 0) * (set.reps || 0);
-        records.maxVolume = Math.max(records.maxVolume, volume);
-        records.totalVolume += volume;
-      }
-      if (set.reps) records.maxReps = Math.max(records.maxReps, set.reps);
-      if (set.duration) records.maxDuration = Math.max(records.maxDuration, set.duration);
-      if (set.distance) records.maxDistance = Math.max(records.maxDistance, set.distance);
-    });
   });
+
+  // Get background image based on category
+  const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-2.jpg';
+
+  // Fetch exercise history from IndexedDB
+  useEffect(() => {
+    async function fetchHistory() {
+      setLoading(true);
+      try {
+        const workouts = await workoutDb.searchByExercise(exercise.name, 100);
+
+        // Extract exercise instances from workouts
+        const history = workouts.flatMap(workout =>
+          (workout.exercises || [])
+            .filter(ex => ex.name === exercise.name)
+            .map(ex => ({
+              ...ex,
+              workoutDate: workout.date || workout.startTime,
+              workoutName: workout.name
+            }))
+        ).sort((a, b) => b.workoutDate - a.workoutDate);
+
+        setExerciseHistory(history);
+
+        // Calculate records
+        const newRecords = {
+          maxWeight: 0,
+          maxReps: 0,
+          maxVolume: 0,
+          maxDuration: 0,
+          maxDistance: 0,
+          totalSets: 0,
+          totalVolume: 0,
+        };
+
+        history.forEach(ex => {
+          (ex.sets || []).filter(s => s.completed).forEach(set => {
+            newRecords.totalSets++;
+            if (set.weight) {
+              newRecords.maxWeight = Math.max(newRecords.maxWeight, set.weight);
+              const volume = (set.weight || 0) * (set.reps || 0);
+              newRecords.maxVolume = Math.max(newRecords.maxVolume, volume);
+              newRecords.totalVolume += volume;
+            }
+            if (set.reps) newRecords.maxReps = Math.max(newRecords.maxReps, set.reps);
+            if (set.duration) newRecords.maxDuration = Math.max(newRecords.maxDuration, set.duration);
+            if (set.distance) newRecords.maxDistance = Math.max(newRecords.maxDistance, set.distance);
+          });
+        });
+
+        setRecords(newRecords);
+      } catch (err) {
+        console.error('Error fetching exercise history:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchHistory();
+  }, [exercise.name]);
 
   const tabs = [
     { id: 'about', label: 'About' },
@@ -155,8 +186,8 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Hero Header with Category Background */}
       <div className="relative h-48 overflow-hidden">
-        <img src={backgroundImage} alt="" className="w-full h-full object-cover opacity-70" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+        <img src={backgroundImage} alt="" className="w-full h-full object-cover opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
         {/* Controls */}
         <div className="absolute top-4 left-4 right-4 flex justify-between">
           <button onClick={onClose} className="bg-white/10 backdrop-blur-sm w-10 h-10 rounded-full flex items-center justify-center text-white border border-white/20 hover:bg-white/20">

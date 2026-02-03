@@ -1,0 +1,244 @@
+import { useState, useRef, useEffect } from 'react';
+import { Icons } from './Icons';
+import { workoutDb, db } from '../db/workoutDb';
+
+export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData }) {
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [reimporting, setReimporting] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [workoutCount, setWorkoutCount] = useState(0);
+  const fileInputRef = useRef(null);
+
+  // Get workout count on mount
+  useEffect(() => {
+    workoutDb.count().then(setWorkoutCount);
+  }, []);
+
+  // Re-import Strong history from JSON file
+  const handleReimportHistory = async () => {
+    if (!confirm('This will clear your current workout history and re-import from the Strong export. Continue?')) {
+      return;
+    }
+
+    setReimporting(true);
+    setMessage(null);
+
+    try {
+      // Clear existing workouts
+      await workoutDb.clear();
+
+      // Reset the import flag
+      await db.metadata.delete('strongHistoryImported');
+
+      setMessage({ type: 'success', text: 'Database cleared. Reloading to import history...' });
+
+      // Reload after a short delay to trigger migration
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (err) {
+      console.error('Re-import error:', err);
+      setMessage({ type: 'error', text: 'Re-import failed: ' + err.message });
+      setReimporting(false);
+    }
+  };
+
+  // Export all data to JSON file
+  const handleExport = async () => {
+    setExporting(true);
+    setMessage(null);
+
+    try {
+      // Get all workouts from IndexedDB
+      const workouts = await workoutDb.getAll();
+
+      const backup = {
+        version: 1,
+        exportDate: new Date().toISOString(),
+        data: {
+          workouts,
+          exercises,
+          templates,
+          folders
+        },
+        stats: {
+          workoutCount: workouts.length,
+          exerciseCount: exercises.length,
+          templateCount: templates.length
+        }
+      };
+
+      // Create and download file
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workout-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setMessage({ type: 'success', text: `Exported ${workouts.length} workouts, ${templates.length} templates` });
+    } catch (err) {
+      console.error('Export error:', err);
+      setMessage({ type: 'error', text: 'Export failed: ' + err.message });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Import data from JSON file
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setMessage(null);
+
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+
+      // Validate backup structure
+      if (!backup.data || !backup.version) {
+        throw new Error('Invalid backup file format');
+      }
+
+      const { workouts = [], exercises: importedExercises = [], templates: importedTemplates = [], folders: importedFolders = [] } = backup.data;
+
+      // Import workouts to IndexedDB
+      if (workouts.length > 0) {
+        // Clear existing and import new
+        await workoutDb.clear();
+        await workoutDb.bulkAdd(workouts);
+      }
+
+      // Restore other data via callback
+      if (onRestoreData) {
+        onRestoreData({
+          exercises: importedExercises,
+          templates: importedTemplates,
+          folders: importedFolders
+        });
+      }
+
+      setMessage({
+        type: 'success',
+        text: `Restored ${workouts.length} workouts, ${importedTemplates.length} templates, ${importedExercises.length} exercises`
+      });
+
+    } catch (err) {
+      console.error('Import error:', err);
+      setMessage({ type: 'error', text: 'Import failed: ' + err.message });
+    } finally {
+      setImporting(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl w-full max-w-md border border-white/20 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <h2 className="text-xl font-bold text-white">Settings</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
+            <Icons.X />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-4">
+          {/* Backup Section */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-3">Backup & Restore</h3>
+
+            <div className="space-y-3">
+              {/* Export Button */}
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-800 disabled:opacity-50 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+              >
+                <Icons.Export />
+                {exporting ? 'Exporting...' : 'Export Backup'}
+              </button>
+
+              {/* Import Button */}
+              <label className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white py-3 px-4 rounded-xl font-medium transition-colors cursor-pointer border border-white/20">
+                <Icons.Import />
+                {importing ? 'Importing...' : 'Import Backup'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  disabled={importing}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Status Message */}
+            {message && (
+              <div className={`mt-3 p-3 rounded-lg text-sm ${
+                message.type === 'success'
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-red-500/20 text-red-400 border border-red-500/30'
+              }`}>
+                {message.text}
+              </div>
+            )}
+
+            <p className="text-gray-500 text-xs mt-3">
+              Backups include all workouts, templates, exercises, and folders. Save to iCloud Drive or email to yourself for safekeeping.
+            </p>
+          </div>
+
+          {/* Data Stats */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-3">Current Data</h3>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div>
+                <div className="text-cyan-400 font-bold">{workoutCount.toLocaleString()}</div>
+                <div className="text-gray-500 text-xs">Workouts</div>
+              </div>
+              <div>
+                <div className="text-cyan-400 font-bold">{exercises.length}</div>
+                <div className="text-gray-500 text-xs">Exercises</div>
+              </div>
+              <div>
+                <div className="text-cyan-400 font-bold">{templates.length}</div>
+                <div className="text-gray-500 text-xs">Templates</div>
+              </div>
+              <div>
+                <div className="text-cyan-400 font-bold">{folders.length}</div>
+                <div className="text-gray-500 text-xs">Folders</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Re-import Strong History */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-2">Strong History Import</h3>
+            <p className="text-gray-500 text-xs mb-3">
+              If your workout history didn't import correctly, use this to re-import from the Strong export file.
+            </p>
+            <button
+              onClick={handleReimportHistory}
+              disabled={reimporting}
+              className="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-800 disabled:opacity-50 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+            >
+              <Icons.History />
+              {reimporting ? 'Re-importing...' : 'Re-import Strong History'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
