@@ -5,6 +5,7 @@ import { workoutDb } from '../db/workoutDb';
 
 const HistoryScreen = ({ onRefreshNeeded }) => {
   const [showExport, setShowExport] = useState(false);
+  const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [stats, setStats] = useState({ totalTime: 0, totalVolume: 0 });
   const scrollRef = useRef(null);
 
@@ -128,7 +129,8 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
           ) : (
             <>
               {workouts.map((workout, i) => (
-                <div key={workout.id || i} className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 mb-4 border border-white/20 hover:border-teal-500/50">
+                <button key={workout.id || i} onClick={() => setSelectedWorkout(workout)}
+                  className="w-full text-left bg-white/10 backdrop-blur-sm rounded-2xl p-4 mb-4 border border-white/20 hover:border-teal-500/50 transition-colors">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-white">{workout.name}</h3>
@@ -152,7 +154,7 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
                       </span>
                     ))}
                   </div>
-                </div>
+                </button>
               ))}
 
               {/* Loading indicator */}
@@ -188,10 +190,141 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
             onExport={handleExport}
           />
         )}
+
+        {selectedWorkout && (
+          <WorkoutDetailModal
+            workout={selectedWorkout}
+            onClose={() => setSelectedWorkout(null)}
+          />
+        )}
       </div>
     </div>
   );
 };
+
+// Workout Detail Modal - shows all exercises with sets/reps/weights
+function WorkoutDetailModal({ workout, onClose }) {
+  const formatDate = (timestamp) => {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const formatTime = (timestamp) => {
+    const d = new Date(timestamp);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
+  // Calculate 1RM using Brzycki formula: 1RM = weight × (36 / (37 - reps))
+  const calculate1RM = (weight, reps) => {
+    if (!weight || !reps || reps <= 0) return null;
+    if (reps === 1) return weight;
+    if (reps > 12) return null; // Formula less accurate above 12 reps
+    return Math.round(weight * (36 / (37 - reps)));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col border border-white/20">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{workout.name}</h3>
+            <div className="text-sm text-gray-400">
+              {formatTime(workout.date || workout.startTime)} • {formatDate(workout.date || workout.startTime)}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white p-2"><Icons.X /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Workout summary */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-white/10 rounded-xl p-3 text-center border border-white/10">
+              <div className="text-xl font-bold text-cyan-400">{Math.round((workout.duration || 0) / 60000)}</div>
+              <div className="text-xs text-gray-400">Minutes</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 text-center border border-white/10">
+              <div className="text-xl font-bold text-teal-400">
+                {(workout.exercises || []).reduce((acc, ex) => acc + (ex.sets || []).filter(s => s.completed).length, 0)}
+              </div>
+              <div className="text-xs text-gray-400">Sets</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 text-center border border-white/10">
+              <div className="text-xl font-bold text-rose-400">
+                {((workout.exercises || []).reduce((acc, ex) => acc + (ex.sets || []).filter(s => s.completed).reduce((sAcc, s) => sAcc + ((s.weight || 0) * (s.reps || 0)), 0), 0) / 1000).toFixed(1)}k
+              </div>
+              <div className="text-xs text-gray-400">Volume (lbs)</div>
+            </div>
+          </div>
+
+          {/* Exercises */}
+          {(workout.exercises || []).map((ex, exIdx) => {
+            const completedSets = (ex.sets || []).filter(s => s.completed);
+            if (completedSets.length === 0) return null;
+
+            return (
+              <div key={exIdx} className="mb-4 bg-white/5 rounded-xl p-3 border border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-medium text-white">{ex.name}</h4>
+                    <div className="text-xs text-gray-400">{ex.bodyPart}</div>
+                  </div>
+                  {ex.supersetId && (
+                    <span className="text-xs bg-teal-500/20 text-teal-400 px-2 py-1 rounded-full">Superset</span>
+                  )}
+                </div>
+
+                {/* Set header */}
+                <div className="flex gap-2 text-xs text-gray-500 mb-1 px-1">
+                  <div className="w-8">SET</div>
+                  <div className="flex-1 text-center">
+                    {ex.category === 'cardio' ? 'DISTANCE' : ex.category === 'duration' ? 'TIME' : ex.category === 'band' ? 'BAND' : 'WEIGHT'}
+                  </div>
+                  <div className="flex-1 text-center">
+                    {ex.category === 'cardio' ? 'TIME' : ex.category === 'duration' ? '' : 'REPS'}
+                  </div>
+                  {ex.category !== 'cardio' && ex.category !== 'duration' && ex.category !== 'reps_only' && (
+                    <div className="w-12 text-center">1RM</div>
+                  )}
+                </div>
+
+                {/* Sets */}
+                {completedSets.map((set, setIdx) => {
+                  const oneRM = calculate1RM(set.weight, set.reps);
+                  return (
+                    <div key={setIdx} className="flex gap-2 items-center py-1.5 border-t border-white/5">
+                      <div className="w-8 text-sm text-gray-400">{setIdx + 1}</div>
+                      <div className="flex-1 text-center text-white font-medium">
+                        {set.bandColor ? (
+                          <span className={`px-2 py-0.5 rounded text-xs ${set.bandColor === 'yellow' ? 'bg-yellow-400 text-black' : set.bandColor === 'red' ? 'bg-red-500' : set.bandColor === 'green' ? 'bg-green-500' : set.bandColor === 'blue' ? 'bg-blue-500' : set.bandColor === 'black' ? 'bg-gray-800' : set.bandColor === 'purple' ? 'bg-purple-500' : set.bandColor === 'orange' ? 'bg-orange-500' : 'bg-gray-500'}`}>
+                            {set.bandColor}
+                          </span>
+                        ) : set.distance ? (
+                          `${set.distance} km`
+                        ) : set.weight !== undefined ? (
+                          `${set.weight} lb`
+                        ) : set.duration ? (
+                          `${Math.floor(set.duration / 60)}:${String(set.duration % 60).padStart(2, '0')}`
+                        ) : '-'}
+                      </div>
+                      <div className="flex-1 text-center text-white font-medium">
+                        {set.reps !== undefined ? set.reps : set.duration && !set.distance ? `${Math.floor(set.duration / 60)}:${String(set.duration % 60).padStart(2, '0')}` : '-'}
+                      </div>
+                      {ex.category !== 'cardio' && ex.category !== 'duration' && ex.category !== 'reps_only' && (
+                        <div className="w-12 text-center text-xs text-gray-400">
+                          {oneRM || '-'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Export modal component
 function ExportModal({ onClose, onExport }) {

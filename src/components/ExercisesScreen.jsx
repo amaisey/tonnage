@@ -687,6 +687,12 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
     setTemplateExercises(updated);
   };
 
+  const updateSetValue = (exIndex, setIndex, field, value) => {
+    const updated = [...templateExercises];
+    updated[exIndex].sets[setIndex][field] = value;
+    setTemplateExercises(updated);
+  };
+
   const handleSave = () => {
     if (!name.trim() || templateExercises.length === 0) return;
     onSave({
@@ -734,49 +740,95 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
 
   const restTimePresets = [30, 60, 90, 120, 180];
 
-  const renderExerciseItem = (ex, i, isSuperset = false) => (
-    <div key={i} className={`bg-gray-800/50 p-3 ${isSuperset ? 'border-l-4 border-teal-500' : 'rounded-xl'} mb-2`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {isSuperset && <div className="w-1 h-6 bg-teal-500 rounded-full" />}
-          <div>
-            <div className="font-medium text-white text-sm">{ex.name}</div>
-            <div className="text-xs text-gray-400">{ex.bodyPart} • {CATEGORIES[ex.category]?.label}</div>
+  const renderExerciseItem = (ex, i, isSuperset = false) => {
+    const fields = CATEGORIES[ex.category]?.fields || ['weight', 'reps'];
+    const getFieldLabel = (f) => {
+      if (f === 'weight') return 'lbs';
+      if (f === 'reps') return 'reps';
+      if (f === 'assistedWeight') return '-lbs';
+      if (f === 'duration') return 'sec';
+      if (f === 'distance') return 'km';
+      if (f === 'bandColor') return 'band';
+      return f;
+    };
+
+    return (
+      <div key={i} className={`bg-gray-800/50 p-3 ${isSuperset ? 'border-l-4 border-teal-500' : 'rounded-xl'} mb-2`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {isSuperset && <div className="w-1 h-6 bg-teal-500 rounded-full" />}
+            <div>
+              <div className="font-medium text-white text-sm">{ex.name}</div>
+              <div className="text-xs text-gray-400">{ex.bodyPart} • {CATEGORIES[ex.category]?.label}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {isSuperset && (
+              <button onClick={() => unlinkSuperset(i)} className="text-teal-400 hover:text-teal-300 p-1" title="Unlink">
+                <Icons.Link />
+              </button>
+            )}
+            <button onClick={() => removeExercise(i)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash /></button>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          {isSuperset && (
-            <button onClick={() => unlinkSuperset(i)} className="text-teal-400 hover:text-teal-300 p-1" title="Unlink">
-              <Icons.Link />
-            </button>
-          )}
-          <button onClick={() => removeExercise(i)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash /></button>
+
+        {/* Set count selector */}
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-gray-400">Sets:</span>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map(n => (
+              <button key={n} onClick={() => updateSetCount(i, n)}
+                className={`w-8 h-8 rounded-lg text-sm font-medium ${ex.sets.length === n ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-gray-400">Sets:</span>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map(n => (
-            <button key={n} onClick={() => updateSetCount(i, n)}
-              className={`w-8 h-8 rounded-lg text-sm font-medium ${ex.sets.length === n ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
-              {n}
-            </button>
+
+        {/* Editable set values */}
+        <div className="mb-2 space-y-1">
+          {ex.sets.map((set, setIdx) => (
+            <div key={setIdx} className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-6">{setIdx + 1}</span>
+              {fields.map(field => (
+                field === 'bandColor' ? (
+                  <select key={field} value={set[field] || 'red'}
+                    onChange={e => updateSetValue(i, setIdx, field, e.target.value)}
+                    className="bg-gray-700 text-white text-sm px-2 py-1.5 rounded flex-1">
+                    {Object.entries(BAND_COLORS).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div key={field} className="flex-1 flex items-center gap-1">
+                    <input type="number" value={set[field] || ''}
+                      onChange={e => updateSetValue(i, setIdx, field, e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0"
+                      className="w-full bg-gray-700 text-white text-sm px-2 py-1.5 rounded text-center"
+                    />
+                    <span className="text-xs text-gray-500">{getFieldLabel(field)}</span>
+                  </div>
+                )
+              ))}
+            </div>
           ))}
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-400">Rest:</span>
-        <div className="flex gap-1">
-          {restTimePresets.map(t => (
-            <button key={t} onClick={() => updateRestTime(i, t)}
-              className={`px-2 py-1 rounded text-xs font-medium ${(ex.restTime || 90) === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
-              {formatDuration(t)}
-            </button>
-          ))}
+
+        {/* Rest time selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Rest:</span>
+          <div className="flex gap-1 flex-wrap">
+            {restTimePresets.map(t => (
+              <button key={t} onClick={() => updateRestTime(i, t)}
+                className={`px-2 py-1 rounded text-xs font-medium ${(ex.restTime || 90) === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                {formatDuration(t)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const groups = getGroupedExercises();
 
