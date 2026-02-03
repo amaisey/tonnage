@@ -179,7 +179,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 p-6 overflow-hidden">
+      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 px-6 pb-6 overflow-hidden" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
@@ -305,7 +305,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
 
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between">
           <div>
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
@@ -314,7 +314,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
-            <button onClick={onFinish} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">Finish</button>
+            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
-import { formatDuration } from '../utils/helpers';
+import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
 
 const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [] }) => {
@@ -31,7 +31,7 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/60"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-white">Exercises</h2>
           <button onClick={() => setShowCreate(true)} className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/30 flex items-center gap-2 border border-white/30">

@@ -162,29 +162,32 @@ function App() {
           )}
         </div>
 
-        <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
-          <div className="flex justify-around">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    if (tab.id === 'settings') {
-                      setShowSettings(true);
-                    } else {
-                      setActiveTab(tab.id);
-                    }
-                  }}
-                  className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  <Icon />
-                  <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
-                </button>
-              );
-            })}
+        <div className="bg-gray-900 border-t border-gray-800/50">
+          <div className="px-4 pt-2 pb-2">
+            <div className="flex justify-around">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      if (tab.id === 'settings') {
+                        setShowSettings(true);
+                      } else {
+                        setActiveTab(tab.id);
+                      }
+                    }}
+                    className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    <Icon />
+                    <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          <div style={{ height: 'env(safe-area-inset-bottom)' }}></div>
         </div>
 
         {completedWorkout && (
