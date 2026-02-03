@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration } from '../utils/helpers';
-import { EditExerciseModal } from './SharedComponents';
+import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
 
 const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [] }) => {
   const [search, setSearch] = useState('');
