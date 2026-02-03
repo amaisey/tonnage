@@ -4,13 +4,25 @@ import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, getPreviousData }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const intervalRef = useRef(null);
+
+  // Get previous workout data for a specific exercise
+  const getPreviousExerciseData = (exerciseName) => {
+    if (!history || history.length === 0) return null;
+    for (const workout of history) {
+      const prevExercise = workout.exercises.find(ex => ex.name === exerciseName);
+      if (prevExercise && prevExercise.sets.some(s => s.completed)) {
+        return prevExercise.sets.filter(s => s.completed);
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
     if (restTimer.active && restTimer.time > 0) {
@@ -25,31 +37,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
-  const addExercises = async (selectedExercises, asSuperset) => {
+  const addExercises = (selectedExercises, asSuperset) => {
     const updated = { ...activeWorkout };
-
-    // Fetch previous data for all exercises in parallel
-    const exercisesWithPrevData = await Promise.all(
-      selectedExercises.map(async (ex) => {
-        const prevData = getPreviousData ? await getPreviousData(ex.name) : null;
+    if (asSuperset && selectedExercises.length >= 2) {
+      const supersetId = `superset-${Date.now()}`;
+      selectedExercises.forEach(ex => {
+        const prevData = getPreviousExerciseData(ex.name);
         const sets = prevData && prevData.length > 0
           ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
-        return { ex, prevData, sets };
-      })
-    );
-
-    if (asSuperset && selectedExercises.length >= 2) {
-      const supersetId = `superset-${Date.now()}`;
-      exercisesWithPrevData.forEach(({ ex, prevData, sets }) => {
         updated.exercises.push({ ...ex, supersetId, restTime: 90, sets, previousSets: prevData });
       });
     } else {
-      exercisesWithPrevData.forEach(({ ex, prevData, sets }) => {
+      selectedExercises.forEach(ex => {
+        const prevData = getPreviousExerciseData(ex.name);
+        const sets = prevData && prevData.length > 0
+          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined }))
+          : [getDefaultSetForCategory(ex.category)];
         updated.exercises.push({ ...ex, restTime: 90, sets, previousSets: prevData });
       });
     }
-
     setActiveWorkout(updated);
     setShowExerciseModal(false);
   };
@@ -172,21 +179,23 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-black p-6 overflow-hidden">
+      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 p-6 overflow-hidden">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/80"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center">
-          <div className="text-6xl mb-4">🏋️</div>
-          <h2 className="text-xl font-bold text-white mb-2">Ready to Train?</h2>
-          <p className="text-gray-300 text-center mb-6 text-sm">Start a new workout or select a template</p>
-          <button onClick={() => setActiveWorkout({ name: 'New Workout', exercises: [], startTime: Date.now() })}
-            className="bg-rose-700 text-white px-6 py-3 rounded-xl font-medium hover:bg-rose-800 flex items-center gap-2 shadow-lg">
-            <Icons.Plus /> Start Empty Workout
-          </button>
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
+            <div className="text-6xl mb-4 text-center">🏋️</div>
+            <h2 className="text-2xl font-bold text-white mb-2 text-center">Ready to Train?</h2>
+            <p className="text-white/70 text-center mb-6 text-sm">Start a new workout or select a template</p>
+            <button onClick={() => setActiveWorkout({ name: 'New Workout', exercises: [], startTime: Date.now() })}
+              className="w-full bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-medium hover:bg-white/30 flex items-center justify-center gap-2 border border-white/30 transition-all">
+              <Icons.Plus /> Start Empty Workout
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -215,13 +224,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                 )}
                 {exercise.highlight && <span className="text-rose-400">⭐</span>}
               </div>
-              <div className="text-xs text-gray-300">{exercise.bodyPart} • {CATEGORIES[exercise.category]?.label}</div>
+              <div className="text-xs text-gray-400">{exercise.bodyPart} • {CATEGORIES[exercise.category]?.label}</div>
             </div>
           </div>
           <div className="flex items-center gap-1">
             {/* Rest time button */}
             <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)}
-              className="text-cyan-400 hover:text-cyan-300 px-2 py-1 text-xs flex items-center gap-1 rounded bg-white/10 border border-white/20">
+              className="text-cyan-400 hover:text-cyan-300 px-2 py-1 text-xs flex items-center gap-1 rounded bg-gray-800">
               <Icons.TimerSmall /> {formatDuration(exerciseRestTime)}
             </button>
             {isSuperset && (
@@ -235,12 +244,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
         {/* Rest time editor */}
         {editingRestTime === exIndex && (
-          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 mb-3 border border-white/10">
+          <div className="bg-gray-800/50 rounded-lg p-3 mb-3">
             <div className="text-xs text-gray-400 mb-2">Rest time between sets</div>
             <div className="flex flex-wrap gap-2">
               {restTimePresets.map(t => (
                 <button key={t} onClick={() => updateExerciseRestTime(exIndex, t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${exerciseRestTime === t ? 'bg-rose-700 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/20'}`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${exerciseRestTime === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
                   {formatDuration(t)}
                 </button>
               ))}
@@ -275,7 +284,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-2 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm border border-white/10">
+          className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
           <Icons.Plus /> Add Set ({formatDuration(exerciseRestTime)})
         </button>
       </div>
@@ -285,11 +294,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groups = getGroupedExercises();
 
   return (
-    <div className="flex flex-col h-full bg-black relative">
+    <div className="flex flex-col h-full bg-gray-900 relative">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
@@ -301,7 +310,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           <div>
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
               className="text-xl font-bold text-white bg-transparent border-none focus:outline-none" />
-            <div className="text-sm text-gray-300">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
+            <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
@@ -338,7 +347,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }
         })}
         <button onClick={() => setShowExerciseModal(true)}
-          className="w-full bg-white/5 backdrop-blur-sm border-2 border-dashed border-white/20 rounded-2xl p-6 text-gray-300 hover:border-teal-500 hover:text-teal-400 flex items-center justify-center gap-2">
+          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-teal-600 hover:text-teal-400 flex items-center justify-center gap-2">
           <Icons.Plus /> Add Exercise
         </button>
       </div>
@@ -346,11 +355,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       {/* Cancel Confirmation Modal */}
       {showCancelConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-white/20">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold text-white mb-2">Cancel Workout?</h3>
             <p className="text-gray-400 text-sm mb-6">Your workout progress will be lost. This cannot be undone.</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowCancelConfirm(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-medium hover:bg-white/20 border border-white/20">
+              <button onClick={() => setShowCancelConfirm(false)} className="flex-1 bg-gray-800 text-white py-3 rounded-xl font-medium hover:bg-gray-700">
                 Keep Going
               </button>
               <button onClick={() => { setShowCancelConfirm(false); onCancel(); }} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium hover:bg-red-600">

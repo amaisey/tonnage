@@ -121,7 +121,7 @@ function App() {
 
   return (
     <HistoryMigration>
-      <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'workout' && (
             <WorkoutScreen
