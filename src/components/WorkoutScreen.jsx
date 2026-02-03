@@ -293,6 +293,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   return (
     <div className="flex flex-col h-full bg-black relative">
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-20" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black"></div>
+      </div>
+      <div className="relative z-10 flex flex-col h-full">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
@@ -384,6 +390,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           fieldLabel={numpadState.field === 'weight' ? 'Weight (lbs)' : numpadState.field === 'reps' ? 'Reps' : numpadState.field === 'duration' ? 'Duration (sec)' : numpadState.field === 'distance' ? 'Distance (km)' : numpadState.field}
         />
       )}
+      </div>
     </div>
   );
 };

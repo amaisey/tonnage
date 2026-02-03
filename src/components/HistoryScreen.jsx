@@ -8,10 +8,11 @@ const HistoryScreen = ({ history }) => {
 
   return (
     <div className="relative flex flex-col h-full bg-black overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-bl from-teal-900/25 via-gray-950 to-black"></div>
-      <div className="absolute top-20 left-0 w-48 h-48 bg-cyan-700/15 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-40 right-0 w-32 h-32 bg-teal-600/10 rounded-full blur-2xl"></div>
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img src="/backgrounds/bg-10.jpg" alt="" className="w-full h-full object-cover opacity-15" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/80 to-black"></div>
+      </div>
       <div className="relative z-10 flex flex-col h-full p-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white">History</h2>

@@ -282,10 +282,11 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
 
   return (
     <div className="relative flex flex-col h-full bg-black overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-rose-900/30 via-gray-900 to-teal-900/20"></div>
-      <div className="absolute bottom-20 right-0 w-40 h-40 bg-teal-600/20 rounded-full blur-3xl"></div>
-      <div className="absolute top-40 left-0 w-32 h-32 bg-cyan-600/15 rounded-full blur-2xl"></div>
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img src="/backgrounds/bg-4.jpg" alt="" className="w-full h-full object-cover opacity-20" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/80 to-black"></div>
+      </div>
       <div className="relative z-10 flex flex-col h-full">
       <div className="p-4 border-b border-gray-900/50">
         <div className="flex items-center justify-between mb-2">

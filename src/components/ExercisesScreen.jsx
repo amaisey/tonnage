@@ -25,10 +25,11 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
 
   return (
     <div className="relative flex flex-col h-full bg-black overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-cyan-900/20 via-gray-950 to-black"></div>
-      <div className="absolute top-40 right-0 w-32 h-32 bg-teal-700/20 rounded-full blur-2xl"></div>
-      <div className="absolute bottom-40 left-0 w-24 h-24 bg-cyan-600/15 rounded-full blur-xl"></div>
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-15" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/80 to-black"></div>
+      </div>
       <div className="relative z-10 flex flex-col h-full">
       <div className="p-4 border-b border-gray-900/50">
         <div className="flex items-center justify-between mb-4">
