@@ -95,7 +95,7 @@ function App() {
   ];
 
   return (
-    <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden">
+    <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {activeTab === 'workout' && (
           <WorkoutScreen activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout}
@@ -122,7 +122,7 @@ function App() {
         {activeTab === 'history' && <HistoryScreen history={history} />}
       </div>
 
-      <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2 pb-6">
+      <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
         <div className="flex justify-around">
           {tabs.map(tab => {
             const Icon = tab.icon;
