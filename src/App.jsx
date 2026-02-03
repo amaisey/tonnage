@@ -3,6 +3,7 @@ import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
 import { defaultFolders, sampleTemplates } from './data/defaultTemplates';
+import { importedHistory } from './data/importedHistory';
 import { WorkoutScreen } from './components/WorkoutScreen';
 import { ExercisesScreen } from './components/ExercisesScreen';
 import { TemplatesScreen } from './components/TemplatesScreen';
@@ -17,6 +18,22 @@ function App() {
   const [folders, setFolders] = useLocalStorage('workout-folders', defaultFolders);
   const [history, setHistory] = useLocalStorage('workout-history', []);
   const [completedWorkout, setCompletedWorkout] = useState(null);
+  const [historyImported, setHistoryImported] = useLocalStorage('workout-history-imported', false);
+
+  // Import Strong history on first load
+  useEffect(() => {
+    if (!historyImported && importedHistory.length > 0) {
+      // Merge imported history with existing, avoiding duplicates by date
+      const existingDates = new Set(history.map(w => w.date));
+      const newWorkouts = importedHistory.filter(w => !existingDates.has(w.date));
+      if (newWorkouts.length > 0) {
+        // Combine and sort by date (most recent first)
+        const merged = [...history, ...newWorkouts].sort((a, b) => b.date - a.date);
+        setHistory(merged);
+      }
+      setHistoryImported(true);
+    }
+  }, [historyImported]);
 
   // Helper to get previous workout data for an exercise
   const getPreviousExerciseData = (exerciseName) => {
@@ -95,9 +112,9 @@ function App() {
   ];
 
   return (
-    <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden">
-      {/* Main content area - extends under safe areas */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+    <div className="w-full h-[100dvh] bg-black flex flex-col">
+      {/* Main content area */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'workout' && (
           <WorkoutScreen activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout}
             onFinish={finishWorkout} onCancel={cancelWorkout} exercises={exercises} history={history} />
@@ -123,21 +140,21 @@ function App() {
         {activeTab === 'history' && <HistoryScreen history={history} />}
       </div>
 
-      {/* Bottom nav - thinner, flush to bottom */}
-      <div className="bg-gray-900/95 backdrop-blur-sm border-t border-gray-800/50 px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex justify-around">
+      {/* Bottom nav - compact, flush to screen bottom */}
+      <nav className="flex-shrink-0 bg-gray-900 border-t border-gray-800/50 pb-[env(safe-area-inset-bottom)]">
+        <div className="flex justify-around py-1">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center py-1.5 px-3 rounded-lg transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                <Icon /><span className={`text-[10px] mt-0.5 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
+                className={`flex flex-col items-center py-1 px-4 ${isActive ? 'text-cyan-400' : 'text-gray-500'}`}>
+                <Icon /><span className="text-[10px] mt-0.5">{tab.label}</span>
               </button>
             );
           })}
         </div>
-      </div>
+      </nav>
 
       {completedWorkout && <WorkoutCompleteModal workout={completedWorkout} onClose={() => setCompletedWorkout(null)} onSaveAsTemplate={saveAsTemplate} />}
     </div>

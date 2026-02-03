@@ -148,7 +148,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Fixed Header */}
-      <div className="shrink-0 p-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-sm">
+      <div className="shrink-0 px-4 pb-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
         <h3 className="text-lg font-semibold text-white">Edit Template</h3>
         <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
@@ -288,7 +288,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full">
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold text-white">Templates</h2>
           <div className="flex gap-2">

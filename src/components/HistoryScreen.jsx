@@ -24,7 +24,7 @@ const HistoryScreen = ({ history }) => {
       </div>
       <div className="relative z-10 flex flex-col h-full">
         {/* Header with Stats */}
-        <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+        <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-white">History</h2>
             {history.length > 0 && (

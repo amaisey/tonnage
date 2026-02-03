@@ -241,8 +241,8 @@ const ExerciseSearchModal = ({ exercises, onSelect, onSelectMultiple, onClose, a
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 overflow-hidden">
-      {/* Full screen modal */}
-      <div className="absolute inset-x-0 top-8 bottom-0 bg-gray-900 rounded-t-3xl flex flex-col">
+      {/* Full screen modal with safe-area at top */}
+      <div className="absolute inset-x-0 bottom-0 bg-gray-900 rounded-t-3xl flex flex-col" style={{ top: 'env(safe-area-inset-top)' }}>
         {/* Top Header Bar - Fixed */}
         <div className="p-3 border-b border-gray-800 bg-black rounded-t-3xl">
           <div className="flex items-center justify-between">
@@ -492,7 +492,7 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
   const isUrgent = timeRemaining <= 10;
 
   return (
-    <div className="fixed top-12 left-0 right-0 mx-auto max-w-md z-40 px-4">
+    <div className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4" style={{ top: 'calc(env(safe-area-inset-top) + 3rem)' }}>
       <div className={`rounded-2xl p-4 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 text-white">
