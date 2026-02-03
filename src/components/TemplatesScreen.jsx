@@ -2,7 +2,8 @@ import { useState, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { ExerciseSearchModal } from './SharedComponents';
+import { ExerciseSearchModal, CreateFolderModal } from './SharedComponents';
+import { CreateTemplateModal, ImportModal } from './ExercisesScreen';
 
 // Edit Template Modal (simplified)
 const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }) => {

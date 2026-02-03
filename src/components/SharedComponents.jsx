@@ -518,4 +518,4 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
   );
 };
 
-export { NumberPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner };
+export { NumberPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };

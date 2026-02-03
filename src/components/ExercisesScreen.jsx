@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration } from '../utils/helpers';
+import { EditExerciseModal } from './SharedComponents';
 
 const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [] }) => {
   const [search, setSearch] = useState('');
@@ -811,4 +812,4 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
 
 // Templates Screen with Folders
 
-export { ExercisesScreen };
+export { ExercisesScreen, CreateTemplateModal, ImportModal };
