@@ -180,11 +180,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   if (!activeWorkout) {
     return (
       <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-black p-6 overflow-hidden">
-        {/* Gradient Background */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-rose-900/50 via-gray-950 to-teal-950/30"></div>
-        <div className="absolute top-10 right-0 w-64 h-64 bg-rose-700/30 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 left-0 w-48 h-48 bg-teal-600/20 rounded-full blur-2xl"></div>
-        <div className="absolute top-1/2 left-1/4 w-32 h-32 bg-cyan-600/15 rounded-full blur-xl"></div>
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/90"></div>
+        </div>
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center">
           <div className="text-6xl mb-4">🏋️</div>
