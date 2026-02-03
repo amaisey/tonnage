@@ -95,7 +95,8 @@ function App() {
   ];
 
   return (
-    <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden">
+      {/* Main content area - extends under safe areas */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {activeTab === 'workout' && (
           <WorkoutScreen activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout}
@@ -122,15 +123,16 @@ function App() {
         {activeTab === 'history' && <HistoryScreen history={history} />}
       </div>
 
-      <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+      {/* Bottom nav - thinner, flush to bottom */}
+      <div className="bg-gray-900/95 backdrop-blur-sm border-t border-gray-800/50 px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex justify-around">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                <Icon /><span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
+                className={`flex flex-col items-center py-1.5 px-3 rounded-lg transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                <Icon /><span className={`text-[10px] mt-0.5 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
               </button>
             );
           })}
