@@ -162,31 +162,27 @@ function App() {
           )}
         </div>
 
-        <nav className="bg-gray-900 shrink-0">
-          <div className="flex justify-around px-4 py-2">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    if (tab.id === 'settings') {
-                      setShowSettings(true);
-                    } else {
-                      setActiveTab(tab.id);
-                    }
-                  }}
-                  className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  <Icon />
-                  <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          {/* Safe area spacer for home indicator */}
-          <div className="h-safe-b" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+        <nav className="bg-gray-900 shrink-0 flex justify-around px-4 py-2 pb-6">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (tab.id === 'settings') {
+                    setShowSettings(true);
+                  } else {
+                    setActiveTab(tab.id);
+                  }
+                }}
+                className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                <Icon />
+                <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         {completedWorkout && (
