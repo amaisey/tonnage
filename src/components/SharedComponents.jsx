@@ -144,11 +144,12 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
 
     const placeholders = { weight: '0', reps: '0', duration: '0', distance: '0', assistedWeight: '0' };
     const labels = { weight: 'lbs', reps: 'reps', duration: 'sec', distance: 'mi', assistedWeight: '-lbs' };
+    const isProposed = set.proposed && !set.manuallyEdited && set[field];
     return (
       <button
         key={field}
         onClick={() => onOpenNumpad(setIndex, field, fieldIndex)}
-        className={`flex-1 px-2 py-2 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'}`}
+        className={`flex-1 px-2 py-2 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'} ${isProposed ? 'opacity-50' : ''}`}
       >
         {set[field] || placeholders[field]}
       </button>

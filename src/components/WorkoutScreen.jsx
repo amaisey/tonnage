@@ -85,9 +85,31 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     addExercises([exercise], false);
   };
 
-  const updateSet = (exIndex, setIndex, field, value) => {
+  const updateSet = (exIndex, setIndex, field, value, propagate = true) => {
     const updated = { ...activeWorkout };
-    updated.exercises[exIndex].sets[setIndex][field] = value;
+    const exercise = updated.exercises[exIndex];
+    const currentValue = exercise.sets[setIndex][field];
+
+    // Update the current set
+    exercise.sets[setIndex][field] = value;
+    exercise.sets[setIndex].manuallyEdited = true;
+
+    // Propagate to subsequent sets if enabled
+    if (propagate && value && (field === 'weight' || field === 'reps' || field === 'duration' || field === 'distance' || field === 'assistedWeight')) {
+      for (let i = setIndex + 1; i < exercise.sets.length; i++) {
+        const set = exercise.sets[i];
+        // Only propagate if: not completed, not manually edited, and value is empty or same as previous
+        if (!set.completed && !set.manuallyEdited) {
+          const setCurrentValue = set[field];
+          // Propagate if empty or matches what we just changed from
+          if (!setCurrentValue || setCurrentValue === '' || setCurrentValue === currentValue) {
+            set[field] = value;
+            set.proposed = true; // Mark as proposed/auto-filled
+          }
+        }
+      }
+    }
+
     setActiveWorkout(updated);
   };
 
@@ -192,6 +214,21 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setActiveWorkout(updated);
   };
 
+  // Link exercise with the next one as a superset
+  const linkWithNext = (exIndex) => {
+    if (exIndex >= activeWorkout.exercises.length - 1) return; // No next exercise
+    const updated = { ...activeWorkout };
+    const currentEx = updated.exercises[exIndex];
+    const nextEx = updated.exercises[exIndex + 1];
+
+    // Create new superset ID or use existing one
+    const supersetId = currentEx.supersetId || nextEx.supersetId || `superset-${Date.now()}`;
+    currentEx.supersetId = supersetId;
+    nextEx.supersetId = supersetId;
+
+    setActiveWorkout(updated);
+  };
+
   // Group exercises by superset
   const getGroupedExercises = () => {
     const groups = [];
@@ -269,10 +306,30 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)} className="text-xs text-gray-400 px-2 py-1 rounded hover:bg-white/10">
               ⏱️ {formatDuration(exerciseRestTime)}
             </button>
+            {/* Link button - show if there's a next exercise and this is the last in its group */}
+            {exIndex < activeWorkout.exercises.length - 1 && (!isSuperset || isLast) && (
+              <button
+                onClick={() => linkWithNext(exIndex)}
+                className="text-teal-400 hover:text-teal-300 p-1 hover:bg-white/10 rounded"
+                title="Link with next exercise"
+              >
+                <Icons.Link />
+              </button>
+            )}
+            {/* Unlink button - show if in a superset */}
+            {isSuperset && (
+              <button
+                onClick={() => unlinkSuperset(exIndex)}
+                className="text-orange-400 hover:text-orange-300 p-1 hover:bg-white/10 rounded"
+                title="Unlink from superset"
+              >
+                <Icons.Unlink />
+              </button>
+            )}
             <button onClick={() => removeExercise(exIndex)} className="text-red-400 hover:text-red-300 p-1"><Icons.X /></button>
           </div>
         </div>
