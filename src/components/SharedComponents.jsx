@@ -140,17 +140,25 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
           {showBandPicker && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-50 p-1">
-              {Object.entries(BAND_COLORS).map(([color, info]) => (
-                <button
-                  key={color}
-                  onClick={() => { onUpdate('bandColor', color); setShowBandPicker(false); }}
-                  className={`w-full ${info.bg} ${info.text} px-2 py-1.5 rounded text-xs font-medium mb-1 last:mb-0`}
-                >
-                  {info.label}
-                </button>
-              ))}
-            </div>
+            <>
+              {/* Backdrop to close on tap outside */}
+              <div className="fixed inset-0 z-[100]" onClick={() => setShowBandPicker(false)} />
+              {/* Band picker modal */}
+              <div className="fixed left-4 right-4 bg-gray-800 rounded-xl shadow-2xl z-[101] p-2 border border-gray-700" style={{ top: '50%', transform: 'translateY(-50%)' }}>
+                <div className="text-center text-white font-medium mb-2 pb-2 border-b border-gray-700">Select Band Color</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(BAND_COLORS).map(([color, info]) => (
+                    <button
+                      key={color}
+                      onClick={() => { onUpdate('bandColor', color); setShowBandPicker(false); }}
+                      className={`${info.bg} ${info.text} px-3 py-3 rounded-lg text-sm font-medium`}
+                    >
+                      {info.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       );
