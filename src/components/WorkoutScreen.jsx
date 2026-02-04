@@ -458,14 +458,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       {bandPickerState && (
         <>
           <div className="fixed inset-0 z-[100] bg-black/50" onClick={() => setBandPickerState(null)} />
-          <div className="fixed left-4 right-4 bg-gray-800 rounded-xl shadow-2xl z-[101] p-3 border border-gray-700" style={{ top: '50%', transform: 'translateY(-50%)' }}>
+          <div className="fixed left-1/2 -translate-x-1/2 w-64 bg-gray-800 rounded-xl shadow-2xl z-[101] p-3 border border-gray-700" style={{ top: '50%', transform: 'translate(-50%, -50%)' }}>
             <div className="text-center text-white font-medium mb-3 pb-2 border-b border-gray-700">Select Band Color</div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               {Object.entries(BAND_COLORS).map(([color, info]) => (
                 <button
                   key={color}
                   onClick={() => selectBandColor(color)}
-                  className={`${info.bg} ${info.text} px-3 py-3 rounded-lg text-sm font-medium ${bandPickerState.currentColor === color ? 'ring-2 ring-white' : ''}`}
+                  className={`${info.bg} ${info.text} px-3 py-2 rounded-lg text-sm font-medium ${bandPickerState.currentColor === color ? 'ring-2 ring-white' : ''}`}
                 >
                   {info.label}
                 </button>

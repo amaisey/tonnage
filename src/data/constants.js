@@ -14,15 +14,15 @@ export const CATEGORIES = {
   band: { label: 'Resistance Band', fields: ['bandColor', 'reps'] },
 };
 
-// Band color options with display colors
+// Band color options with display colors - ordered by resistance level
 export const BAND_COLORS = {
   yellow: { label: 'Yellow (X-Light)', bg: 'bg-yellow-400', text: 'text-black' },
+  orange: { label: 'Orange (Light-Med)', bg: 'bg-orange-500', text: 'text-white' },
   red: { label: 'Red (Light)', bg: 'bg-red-500', text: 'text-white' },
   green: { label: 'Green (Medium)', bg: 'bg-green-500', text: 'text-white' },
   blue: { label: 'Blue (Heavy)', bg: 'bg-blue-500', text: 'text-white' },
   black: { label: 'Black (X-Heavy)', bg: 'bg-gray-900', text: 'text-white' },
   purple: { label: 'Purple (XX-Heavy)', bg: 'bg-purple-600', text: 'text-white' },
-  orange: { label: 'Orange (Light-Med)', bg: 'bg-orange-500', text: 'text-white' },
 };
 
 // Exercise types for workout organization
