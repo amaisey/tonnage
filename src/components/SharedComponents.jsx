@@ -68,7 +68,14 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
         </div>
       ) : (
         <div className="p-3">
-          <div className="text-center text-gray-400 text-xs mb-2 uppercase">{fieldLabel}</div>
+          {/* Header with field label and dismiss button */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-10"></div>
+            <div className="text-gray-400 text-xs uppercase">{fieldLabel}</div>
+            <button onClick={onClose} className="w-10 h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center justify-center">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {['1', '2', '3'].map(d => (
               <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
@@ -93,12 +100,12 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
             {['7', '8', '9'].map(d => (
               <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
             ))}
-            <button onClick={onClose} className="bg-gray-700 text-gray-300 text-sm font-medium py-4 rounded-lg hover:bg-gray-600">Done</button>
+            <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
 
             <div></div>
             <button onClick={() => handleDigit('0')} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">0</button>
-            <button onClick={handleBackspace} className="bg-gray-800 text-gray-300 text-xl font-medium py-4 rounded-lg hover:bg-gray-700">⌫</button>
-            <button onClick={onNext} className="bg-rose-700 text-white text-base font-bold py-4 rounded-lg hover:bg-rose-800">Next</button>
+            <div></div>
+            <button onClick={onNext} className="bg-cyan-600 text-white text-base font-bold py-4 rounded-lg hover:bg-cyan-700">Next</button>
           </div>
         </div>
       )}
@@ -135,7 +142,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
           {showBandPicker && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-20 p-1">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-50 p-1">
               {Object.entries(BAND_COLORS).map(([color, info]) => (
                 <button
                   key={color}

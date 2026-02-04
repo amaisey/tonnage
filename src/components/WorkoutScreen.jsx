@@ -13,7 +13,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const intervalRef = useRef(null);
   const timerAudioRef = useRef(null);
 
-  // Notify parent when numpad state changes (for hiding navbar)
+  // Notify parent when numpad state changes
   useEffect(() => {
     onNumpadStateChange?.(numpadState !== null);
   }, [numpadState, onNumpadStateChange]);
@@ -196,7 +196,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
         {/* Content */}
-        <div className="relative z-10 flex flex-col items-center px-6">
+        <div className="relative z-10 flex flex-col items-center p-6">
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
             <div className="text-6xl mb-4 text-center">🏋️</div>
             <h2 className="text-2xl font-bold text-white mb-2 text-center">Ready to Train?</h2>
@@ -217,6 +217,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const exerciseRestTime = exercise.restTime || 90;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
 
+    // Determine active field for highlighting
+    const activeField = numpadState && numpadState.exIndex === exIndex
+      ? { setIndex: numpadState.setIndex, field: numpadState.field }
+      : null;
+
     return (
       <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} bg-white/10 backdrop-blur-md border border-white/20 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-4'}`}>
         <div className="flex items-center justify-between mb-2">
@@ -228,38 +233,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-white">{exercise.name}</span>
                 {typeInfo && (
-                  <span className={`${typeInfo.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
-                    {typeInfo.icon} {typeInfo.label}
-                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
-                {exercise.highlight && <span className="text-rose-400">⭐</span>}
               </div>
-              <div className="text-xs text-gray-400">{exercise.bodyPart} • {CATEGORIES[exercise.category]?.label}</div>
+              <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Rest time button */}
-            <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)}
-              className="text-cyan-400 hover:text-cyan-300 px-2 py-1 text-xs flex items-center gap-1 rounded bg-gray-800">
-              <Icons.TimerSmall /> {formatDuration(exerciseRestTime)}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)} className="text-xs text-gray-400 px-2 py-1 rounded hover:bg-white/10">
+              ⏱️ {formatDuration(exerciseRestTime)}
             </button>
-            {isSuperset && (
-              <button onClick={() => unlinkSuperset(exIndex)} className="text-teal-400 hover:text-teal-300 p-2" title="Unlink from superset">
-                <Icons.Link />
-              </button>
-            )}
-            <button onClick={() => removeExercise(exIndex)} className="text-red-400 hover:text-red-300 p-2"><Icons.Trash /></button>
+            <button onClick={() => removeExercise(exIndex)} className="text-red-400 hover:text-red-300 p-1"><Icons.X /></button>
           </div>
         </div>
 
-        {/* Rest time editor */}
+        {/* Rest time presets */}
         {editingRestTime === exIndex && (
-          <div className="bg-gray-800/50 rounded-lg p-3 mb-3">
-            <div className="text-xs text-gray-400 mb-2">Rest time between sets</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="mb-3 p-2 bg-gray-800/50 rounded-lg">
+            <div className="flex flex-wrap gap-1">
               {restTimePresets.map(t => (
                 <button key={t} onClick={() => updateExerciseRestTime(exIndex, t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${exerciseRestTime === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                  className={`px-3 py-1 text-xs rounded-full ${exerciseRestTime === t ? 'bg-teal-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
                   {formatDuration(t)}
                 </button>
               ))}
@@ -267,32 +261,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
-        {/* Exercise notes */}
-        {exercise.notes && (
-          <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 mb-3">
-            <div className="text-xs text-amber-400 flex items-center gap-1">
-              <span>📝</span> {exercise.notes}
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-2 mb-2 text-xs text-gray-400 px-2">
-          <div className="w-7">SET</div>
-          <div className="w-16 text-center">PREV</div>
-          {CATEGORIES[exercise.category]?.fields.map(f => (
-            <div key={f} className="flex-1 text-center uppercase">{f === 'assistedWeight' ? '-LBS' : f === 'duration' ? 'SEC' : f === 'distance' ? 'MI' : f === 'bandColor' ? 'BAND' : f}</div>
+        {/* Set headers */}
+        <div className="grid grid-cols-[40px_1fr_1fr_50px_32px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
+          <span>Set</span>
+          {CATEGORIES[exercise.category]?.fields.slice(0, 2).map(f => (
+            <span key={f}>{f === 'bandColor' ? 'Band' : f}</span>
           ))}
-          <div className="w-16"></div>
+          <span className="text-center">Prev</span>
+          <span></span>
         </div>
+
+        {/* Sets */}
         {exercise.sets.map((set, setIndex) => (
           <SetInputRow key={setIndex} set={set} setIndex={setIndex} category={exercise.category}
-            previousSet={setIndex > 0 ? exercise.sets[setIndex - 1] : null}
+            previousSet={exercise.previousSets?.[setIndex] || null}
             previousWorkoutSet={exercise.previousSets?.[setIndex] || null}
             restTime={exerciseRestTime}
             onUpdate={(field, value) => updateSet(exIndex, setIndex, field, value)}
             onComplete={() => toggleSetComplete(exIndex, setIndex)}
             onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)}
-            activeField={numpadState?.exIndex === exIndex && numpadState?.setIndex === setIndex ? numpadState.field : null} />
+            activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
@@ -316,16 +304,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
 
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
-        <div className="flex items-center justify-between gap-2">
+      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+        <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full truncate" />
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
             <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
-            <button onClick={onFinish} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
+            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm whitespace-nowrap">Cancel</button>
+            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (
