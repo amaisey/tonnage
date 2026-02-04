@@ -1,9 +1,150 @@
 import { useState, Fragment } from 'react';
 import { Icons } from './Icons';
-import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
+import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { ExerciseSearchModal, CreateFolderModal } from './SharedComponents';
 import { CreateTemplateModal, ImportModal } from './ExercisesScreen';
+
+// Template Detail Modal - shows full template when clicking on summary
+const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
+  const [collapsedPhases, setCollapsedPhases] = useState({});
+
+  const togglePhase = (phase) => {
+    setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
+  };
+
+  // Group exercises by phase
+  const getExercisesByPhase = () => {
+    const phases = { warmup: [], workout: [], cooldown: [] };
+    template.exercises.forEach((ex, idx) => {
+      const phase = ex.phase || 'workout'; // default to workout
+      phases[phase].push({ exercise: ex, index: idx });
+    });
+    return phases;
+  };
+
+  const exercisesByPhase = getExercisesByPhase();
+
+  // Calculate estimated time per phase
+  const getPhaseTime = (exercises) => {
+    return exercises.reduce((total, { exercise }) => {
+      const setTime = (exercise.sets?.length || 3) * 45; // ~45 sec per set
+      const restTime = (exercise.sets?.length || 3) * (exercise.restTime || 90);
+      return total + setTime + restTime;
+    }, 0);
+  };
+
+  const totalEstimatedTime = template.estimatedTime ||
+    Math.round((getPhaseTime(exercisesByPhase.warmup) + getPhaseTime(exercisesByPhase.workout) + getPhaseTime(exercisesByPhase.cooldown)) / 60);
+
+  return (
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+        <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
+        <h3 className="text-lg font-semibold text-white">{template.name}</h3>
+        <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300">
+          <Icons.Edit />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-gray-900 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-cyan-400">{template.exercises.length}</div>
+            <div className="text-xs text-gray-400">Exercises</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-teal-400">~{totalEstimatedTime}</div>
+            <div className="text-xs text-gray-400">Minutes</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-rose-400">{template.exercises.reduce((t, e) => t + (e.sets?.length || 3), 0)}</div>
+            <div className="text-xs text-gray-400">Total Sets</div>
+          </div>
+        </div>
+
+        {template.notes && (
+          <div className="bg-teal-900/20 border border-teal-700/30 rounded-xl p-3 mb-4">
+            <div className="text-sm text-teal-300 flex items-center gap-2">
+              <span>📋</span> {template.notes}
+            </div>
+          </div>
+        )}
+
+        {/* Exercises by Phase */}
+        {Object.entries(EXERCISE_PHASES).map(([phaseKey, phaseInfo]) => {
+          const phaseExercises = exercisesByPhase[phaseKey];
+          if (phaseExercises.length === 0) return null;
+
+          const isCollapsed = collapsedPhases[phaseKey];
+          const phaseTime = Math.round(getPhaseTime(phaseExercises) / 60);
+
+          return (
+            <div key={phaseKey} className="mb-4">
+              <button
+                onClick={() => togglePhase(phaseKey)}
+                className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>{phaseInfo.icon}</span>
+                  <span className="font-semibold text-white">{phaseInfo.label}</span>
+                  <span className="text-white/70 text-sm">({phaseExercises.length})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70 text-sm">~{phaseTime} min</span>
+                  {isCollapsed ? <Icons.ChevronRight /> : <Icons.ChevronDown />}
+                </div>
+              </button>
+
+              {!isCollapsed && (
+                <div className={`border-l-4 ${phaseInfo.borderColor} pl-3 space-y-2`}>
+                  {phaseExercises.map(({ exercise, index }) => (
+                    <div key={index} className="bg-gray-900 rounded-xl p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium text-white">{exercise.name}</span>
+                          {exercise.supersetId && <span className="ml-2 text-teal-400 text-xs">⚡ Superset</span>}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
+                      </div>
+                      {exercise.notes && (
+                        <div className="text-xs text-amber-400 mt-1">📝 {exercise.notes}</div>
+                      )}
+                      {/* Show set details */}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {exercise.sets?.map((set, sIdx) => (
+                          <div key={sIdx} className="bg-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
+                            {set.weight && `${set.weight}lb `}
+                            {set.reps && `×${set.reps}`}
+                            {set.duration && formatDuration(set.duration)}
+                            {set.distance && `${set.distance}mi`}
+                            {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded text-xs`}>{set.bandColor}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
+        <button
+          onClick={() => { onStart(template); onClose(); }}
+          className="w-full bg-rose-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-rose-700"
+        >
+          Start Workout
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // Edit Template Modal (simplified)
 const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }) => {
@@ -88,8 +229,15 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
 
   const groups = getGroupedExercises();
 
+  const updateExercisePhase = (index, phase) => {
+    const updated = [...exercises];
+    updated[index] = { ...updated[index], phase };
+    setExercises(updated);
+  };
+
   const renderExerciseCard = (exercise, index, isSuperset = false, isFirst = true, isLast = true) => {
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
+    const phaseInfo = exercise.phase ? EXERCISE_PHASES[exercise.phase] : null;
     const isSelected = selectedForSuperset.includes(index);
 
     return (
@@ -107,7 +255,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
               </div>
             )}
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-white">{exercise.name}</span>
                 {typeInfo && (
                   <span className={`${typeInfo.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
@@ -132,6 +280,25 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
             </div>
           )}
         </div>
+
+        {/* Phase selector */}
+        {!selectMode && (
+          <div className="flex gap-1 mb-2">
+            {Object.entries(EXERCISE_PHASES).map(([key, info]) => (
+              <button
+                key={key}
+                onClick={() => updateExercisePhase(index, key)}
+                className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  exercise.phase === key
+                    ? `${info.color} text-white`
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {info.icon} {info.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {exercise.notes && (
           <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 mt-2">
@@ -235,6 +402,17 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null);
+  const [viewingTemplate, setViewingTemplate] = useState(null);
+
+  // Calculate estimated time for a template
+  const calculateEstimatedTime = (template) => {
+    if (template.estimatedTime) return template.estimatedTime;
+    return Math.round(template.exercises.reduce((total, ex) => {
+      const setTime = (ex.sets?.length || 3) * 45; // ~45 sec per set
+      const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
+      return total + setTime + restTime;
+    }, 0) / 60);
+  };
 
   const getAllSubfolderIds = (parentId) => {
     const ids = [];
@@ -330,19 +508,19 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
             const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
 
             return (
-              <div
+              <button
                 key={folder.id}
                 onClick={() => setCurrentFolderId(folder.id)}
-                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 group border border-white/20 cursor-pointer"
+                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 active:bg-white/20 group border border-white/20 cursor-pointer text-left"
               >
                 <span className="text-teal-400"><Icons.Folder /></span>
-                <div className="flex-1">
-                  <span className="font-medium text-white">{folder.name}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-white block">{folder.name}</span>
                   <div className="text-xs text-gray-500">
                     {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
                   </div>
                 </div>
-                <button
+                <span
                   onClick={(e) => {
                     e.stopPropagation();
                     if (isEmpty) {
@@ -359,52 +537,95 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
                   className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Icons.Trash />
-                </button>
+                </span>
                 <span className="text-teal-500/70"><Icons.ChevronRight /></span>
-              </div>
+              </button>
             );
           })}
 
           {/* Templates in current folder */}
-          {folderTemplates.map(template => (
-            <div key={template.id} className="bg-gray-900/80 rounded-2xl p-4 mb-3 border border-gray-800/50 hover:border-cyan-800/30 transition-colors">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{template.name}</h3>
-                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                    <span className="text-cyan-400/70">{template.exercises.length} exercises</span>
-                    {template.estimatedTime && (
-                      <span className="flex items-center gap-1 text-teal-400/70">
-                        <Icons.TimerSmall /> ~{template.estimatedTime} min
+          {folderTemplates.map(template => {
+            const estTime = calculateEstimatedTime(template);
+            // Count exercises by phase
+            const phaseCounts = { warmup: 0, workout: 0, cooldown: 0 };
+            template.exercises.forEach(ex => {
+              const phase = ex.phase || 'workout';
+              phaseCounts[phase]++;
+            });
+
+            return (
+              <div key={template.id} className="bg-gray-900/80 rounded-2xl p-4 mb-3 border border-gray-800/50 hover:border-cyan-800/30 transition-colors">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{template.name}</h3>
+                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                      <span className="text-cyan-400/70">{template.exercises.length} exercises</span>
+                      <span className="flex items-center gap-1 text-teal-400">
+                        <Icons.TimerSmall /> ~{estTime} min
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400/70 hover:text-cyan-300 rounded-lg hover:bg-gray-800">
+                      <Icons.Edit />
+                    </button>
+                    <button onClick={() => onStartTemplate(template)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800">Start</button>
+                  </div>
+                </div>
+
+                {/* Clickable summary area */}
+                <button
+                  onClick={() => setViewingTemplate(template)}
+                  className="w-full text-left"
+                >
+                  {template.notes && (
+                    <div className="bg-teal-900/20 border border-teal-700/30 rounded-lg p-2 mb-3">
+                      <div className="text-xs text-teal-300 flex items-center gap-1">
+                        <span>📋</span> {template.notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phase indicators */}
+                  <div className="flex gap-2 mb-2">
+                    {phaseCounts.warmup > 0 && (
+                      <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">
+                        🔥 {phaseCounts.warmup} warm-up
+                      </span>
+                    )}
+                    {phaseCounts.workout > 0 && (
+                      <span className="bg-rose-500/20 text-rose-400 text-xs px-2 py-0.5 rounded-full">
+                        💪 {phaseCounts.workout} workout
+                      </span>
+                    )}
+                    {phaseCounts.cooldown > 0 && (
+                      <span className="bg-teal-500/20 text-teal-400 text-xs px-2 py-0.5 rounded-full">
+                        🧊 {phaseCounts.cooldown} cool down
                       </span>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400/70 hover:text-cyan-300 rounded-lg hover:bg-gray-800">
-                    <Icons.Edit />
-                  </button>
-                  <button onClick={() => onStartTemplate(template)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800">Start</button>
-                </div>
-              </div>
-              {template.notes && (
-                <div className="bg-teal-900/20 border border-teal-700/30 rounded-lg p-2 mb-3">
-                  <div className="text-xs text-teal-300 flex items-center gap-1">
-                    <span>📋</span> {template.notes}
+
+                  <div className="space-y-1">
+                    {template.exercises.slice(0, 4).map((ex, i) => (
+                      <div key={i} className="text-sm text-gray-400 flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          ex.phase === 'warmup' ? 'bg-amber-500' :
+                          ex.phase === 'cooldown' ? 'bg-teal-500' :
+                          ex.supersetId ? 'bg-teal-500' : 'bg-rose-500/70'
+                        }`}></span>
+                        {ex.name} - {ex.sets?.length || 3} sets
+                      </div>
+                    ))}
+                    {template.exercises.length > 4 && (
+                      <div className="text-xs text-cyan-400 mt-2 hover:text-cyan-300">
+                        Tap to view all {template.exercises.length} exercises →
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-              <div className="space-y-1">
-                {template.exercises.slice(0, 4).map((ex, i) => (
-                  <div key={i} className="text-sm text-gray-400 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${ex.supersetId ? 'bg-teal-500' : 'bg-cyan-600/70'}`}></span>
-                    {ex.name} - {ex.sets.length} sets
-                  </div>
-                ))}
-                {template.exercises.length > 4 && <div className="text-xs text-gray-500">+{template.exercises.length - 4} more exercises</div>}
+                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {childFolders.length === 0 && folderTemplates.length === 0 && (
             <div className="text-center text-gray-400 py-8">No templates in this folder</div>
@@ -439,6 +660,15 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
       {editingTemplate && (
         <EditTemplateModal template={editingTemplate} onSave={onUpdateTemplate} onDelete={onDeleteTemplate}
           onClose={() => setEditingTemplate(null)} allExercises={exercises} />
+      )}
+
+      {viewingTemplate && (
+        <TemplateDetailModal
+          template={viewingTemplate}
+          onClose={() => setViewingTemplate(null)}
+          onStart={onStartTemplate}
+          onEdit={setEditingTemplate}
+        />
       )}
 
       {deleteFolderConfirm && (

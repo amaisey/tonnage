@@ -34,6 +34,13 @@ export const EXERCISE_TYPES = {
   mobility: { label: 'Mobility', color: 'bg-purple-500', icon: '🧘' },
 };
 
+// Exercise phases for workout structure (collapsible sections)
+export const EXERCISE_PHASES = {
+  warmup: { label: 'Warm-up', color: 'bg-amber-500', textColor: 'text-amber-400', borderColor: 'border-amber-500/50', icon: '🔥', order: 1 },
+  workout: { label: 'Workout', color: 'bg-rose-600', textColor: 'text-rose-400', borderColor: 'border-rose-500/50', icon: '💪', order: 2 },
+  cooldown: { label: 'Cool Down', color: 'bg-teal-500', textColor: 'text-teal-400', borderColor: 'border-teal-500/50', icon: '🧊', order: 3 },
+};
+
 // RPE descriptions
 export const RPE_DESCRIPTIONS = {
   6: 'Could do 4+ more reps',

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
-import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS } from '../data/constants';
+import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
@@ -13,9 +13,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
   const [bandPickerState, setBandPickerState] = useState(null); // { exIndex, setIndex, currentColor }
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState(null); // exercise index pending deletion
+  const [collapsedPhases, setCollapsedPhases] = useState({}); // which phases are collapsed
   const intervalRef = useRef(null);
   const timerAudioRef = useRef(null);
   const restTimeRef = useRef(null);
+
+  const togglePhase = (phase) => {
+    setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
+  };
 
   // Notify parent when numpad state changes
   useEffect(() => {
@@ -231,29 +236,50 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setActiveWorkout(updated);
   };
 
-  // Group exercises by superset
-  const getGroupedExercises = () => {
-    const groups = [];
+  // Group exercises by phase, then by superset within each phase
+  const getGroupedExercisesByPhase = () => {
+    const phases = { warmup: [], workout: [], cooldown: [] };
     const used = new Set();
 
+    // First pass: assign exercises to phases
     activeWorkout.exercises.forEach((ex, idx) => {
-      if (used.has(idx)) return;
-
-      if (ex.supersetId) {
-        const supersetExercises = [];
-        activeWorkout.exercises.forEach((e, i) => {
-          if (e.supersetId === ex.supersetId) {
-            supersetExercises.push({ exercise: e, index: i });
-            used.add(i);
-          }
-        });
-        groups.push({ type: 'superset', exercises: supersetExercises, supersetId: ex.supersetId });
-      } else {
-        groups.push({ type: 'single', exercise: ex, index: idx });
-        used.add(idx);
-      }
+      const phase = ex.phase || 'workout';
+      phases[phase].push({ exercise: ex, index: idx });
     });
-    return groups;
+
+    // Second pass: group by superset within each phase
+    const result = {};
+    Object.entries(phases).forEach(([phase, exerciseList]) => {
+      const groups = [];
+      const phaseUsed = new Set();
+
+      exerciseList.forEach(({ exercise, index }) => {
+        if (phaseUsed.has(index)) return;
+
+        if (exercise.supersetId) {
+          const supersetExercises = [];
+          exerciseList.forEach(({ exercise: e, index: i }) => {
+            if (e.supersetId === exercise.supersetId) {
+              supersetExercises.push({ exercise: e, index: i });
+              phaseUsed.add(i);
+            }
+          });
+          groups.push({ type: 'superset', exercises: supersetExercises, supersetId: exercise.supersetId });
+        } else {
+          groups.push({ type: 'single', exercise, index });
+          phaseUsed.add(index);
+        }
+      });
+
+      result[phase] = groups;
+    });
+
+    return result;
+  };
+
+  // Check if any exercises have phases assigned
+  const hasPhases = () => {
+    return activeWorkout?.exercises?.some(ex => ex.phase && ex.phase !== 'workout');
   };
 
   if (!activeWorkout) {
@@ -285,6 +311,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true) => {
     const exerciseRestTime = exercise.restTime || 90;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
+    const phaseInfo = exercise.phase && exercise.phase !== 'workout' ? EXERCISE_PHASES[exercise.phase] : null;
 
     // Determine active field for highlighting
     const activeField = numpadState && numpadState.exIndex === exIndex
@@ -299,10 +326,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               <div className="w-1 h-8 bg-teal-500 rounded-full" />
             )}
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={() => setExerciseDetail(exercise)} className="font-semibold text-white hover:text-cyan-400 transition-colors text-left">{exercise.name}</button>
                 {typeInfo && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
+                )}
+                {phaseInfo && !isSuperset && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${phaseInfo.textColor} bg-white/5`}>{phaseInfo.icon}</span>
                 )}
               </div>
               <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
@@ -389,7 +419,51 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     );
   };
 
-  const groups = getGroupedExercises();
+  const groupedByPhase = getGroupedExercisesByPhase();
+  const showPhases = hasPhases();
+
+  // Helper to render a group (superset or single)
+  const renderGroup = (group, groupIdx) => {
+    if (group.type === 'superset') {
+      return (
+        <div key={group.supersetId} className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Icons.Link />
+            <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
+          </div>
+          <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
+            {group.exercises.map(({ exercise, index }, i) =>
+              renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
+            )}
+          </div>
+        </div>
+      );
+    } else {
+      return renderExerciseCard(group.exercise, group.index, false);
+    }
+  };
+
+  // Calculate phase progress
+  const getPhaseProgress = (groups) => {
+    let completed = 0;
+    let total = 0;
+    groups.forEach(group => {
+      if (group.type === 'superset') {
+        group.exercises.forEach(({ exercise }) => {
+          exercise.sets?.forEach(set => {
+            total++;
+            if (set.completed) completed++;
+          });
+        });
+      } else {
+        group.exercise?.sets?.forEach(set => {
+          total++;
+          if (set.completed) completed++;
+        });
+      }
+    });
+    return { completed, total };
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-black">
@@ -432,25 +506,48 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }}
         onScroll={(e) => onScroll?.(e.target.scrollTop)}
       >
-        {groups.map((group, groupIdx) => {
-          if (group.type === 'superset') {
+        {showPhases ? (
+          // Render with phase sections
+          Object.entries(EXERCISE_PHASES).map(([phaseKey, phaseInfo]) => {
+            const groups = groupedByPhase[phaseKey];
+            if (!groups || groups.length === 0) return null;
+
+            const isCollapsed = collapsedPhases[phaseKey];
+            const { completed, total } = getPhaseProgress(groups);
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
             return (
-              <div key={group.supersetId} className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icons.Link />
-                  <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
-                </div>
-                <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
-                  {group.exercises.map(({ exercise, index }, i) =>
-                    renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
-                  )}
-                </div>
+              <div key={phaseKey} className="mb-4">
+                <button
+                  onClick={() => togglePhase(phaseKey)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{phaseInfo.icon}</span>
+                    <span className="font-semibold text-white">{phaseInfo.label}</span>
+                    <span className="text-white/70 text-sm">({groups.reduce((t, g) => t + (g.type === 'superset' ? g.exercises.length : 1), 0)})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/90 text-sm font-medium">{completed}/{total} sets</span>
+                    <div className="w-16 h-1.5 bg-white/30 rounded-full overflow-hidden">
+                      <div className="h-full bg-white rounded-full transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                    {isCollapsed ? <Icons.ChevronRight /> : <Icons.ChevronDown />}
+                  </div>
+                </button>
+
+                {!isCollapsed && (
+                  <div className={`border-l-4 ${phaseInfo.borderColor} pl-3`}>
+                    {groups.map((group, idx) => renderGroup(group, idx))}
+                  </div>
+                )}
               </div>
             );
-          } else {
-            return renderExerciseCard(group.exercise, group.index, false);
-          }
-        })}
+          })
+        ) : (
+          // Render without phases (flat list with superset grouping)
+          Object.values(groupedByPhase).flat().map((group, idx) => renderGroup(group, idx))
+        )}
         <button onClick={() => setShowExerciseModal(true)}
           className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-teal-600 hover:text-teal-400 flex items-center justify-center gap-2">
           <Icons.Plus /> Add Exercise
@@ -511,6 +608,36 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                   </span>
                 </div>
               )}
+              {/* Phase selector */}
+              <div className="pt-3 border-t border-gray-800">
+                <span className="text-gray-400 text-sm block mb-2">Phase</span>
+                <div className="flex gap-1">
+                  {Object.entries(EXERCISE_PHASES).map(([key, info]) => {
+                    const exIndex = activeWorkout.exercises.findIndex(e => e.name === exerciseDetail.name && e.bodyPart === exerciseDetail.bodyPart);
+                    const currentPhase = exerciseDetail.phase || 'workout';
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          if (exIndex >= 0) {
+                            const updated = { ...activeWorkout };
+                            updated.exercises[exIndex].phase = key;
+                            setActiveWorkout(updated);
+                            setExerciseDetail({ ...exerciseDetail, phase: key });
+                          }
+                        }}
+                        className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors ${
+                          currentPhase === key
+                            ? `${info.color} text-white`
+                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        }`}
+                      >
+                        {info.icon} {info.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {exerciseDetail.notes && (
                 <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg">
                   <div className="text-sm text-amber-400">{exerciseDetail.notes}</div>
