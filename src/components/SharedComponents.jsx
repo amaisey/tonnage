@@ -129,7 +129,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     }
 
     const placeholders = { weight: '0', reps: '0', duration: '0', distance: '0', assistedWeight: '0' };
-    const labels = { weight: 'lbs', reps: 'reps', duration: 'sec', distance: 'km', assistedWeight: '-lbs' };
+    const labels = { weight: 'lbs', reps: 'reps', duration: 'sec', distance: 'mi', assistedWeight: '-lbs' };
     return (
       <button
         key={field}
@@ -145,7 +145,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
   const formatPrevious = () => {
     if (!previousWorkoutSet) return '-';
     if (category === 'cardio') {
-      return `${previousWorkoutSet.distance || 0} km`;
+      return `${previousWorkoutSet.distance || 0} mi`;
     } else if (category === 'duration') {
       return formatDuration(previousWorkoutSet.duration);
     } else if (category === 'reps_only') {
@@ -473,7 +473,7 @@ const TimerScreen = () => {
         </button>
       </div>
       <div className="flex gap-2">
-        {[30, 60, 90, 120, 180].map(p => (
+        {[30, 45, 60, 90, 120, 180].map(p => (
           <button key={p} onClick={() => { setPresetTime(p); setTime(p); setIsRunning(false); }}
             className={`px-4 py-2 rounded-full text-sm font-medium ${presetTime === p ? 'bg-rose-700 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
             {p}s

@@ -1,12 +1,11 @@
 export const formatDuration = (seconds) => {
-  if (!seconds) return '-';
+  if (!seconds && seconds !== 0) return '-';
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  if (mins > 0) return `${mins}:${secs.toString().padStart(2, '0')}`;
-  return `${secs}s`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export const formatDistance = (km) => km ? `${km} km` : '-';
+export const formatDistance = (miles) => miles ? `${miles} mi` : '-';
 
 export const getDefaultSetForCategory = (category) => {
   switch (category) {

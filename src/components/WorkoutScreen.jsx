@@ -4,13 +4,14 @@ import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onScroll, navVisible = true }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const intervalRef = useRef(null);
+  const timerAudioRef = useRef(null);
 
   // Get previous workout data for a specific exercise
   const getPreviousExerciseData = (exerciseName) => {
@@ -27,7 +28,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   useEffect(() => {
     if (restTimer.active && restTimer.time > 0) {
       intervalRef.current = setInterval(() => setRestTimer(prev => ({ ...prev, time: prev.time - 1 })), 1000);
-    } else if (restTimer.time === 0 && restTimer.active) setRestTimer(prev => ({ ...prev, active: false }));
+    } else if (restTimer.time === 0 && restTimer.active) {
+      // Play completion sound
+      timerAudioRef.current?.play().catch(() => {});
+      setRestTimer(prev => ({ ...prev, active: false }));
+    }
     return () => clearInterval(intervalRef.current);
   }, [restTimer.active, restTimer.time]);
 
@@ -179,7 +184,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 px-6 pb-6 overflow-hidden" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
+      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 p-6 overflow-hidden">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
@@ -201,7 +206,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     );
   }
 
-  const restTimePresets = [30, 60, 90, 120, 180, 300];
+  const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
   const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true) => {
     const exerciseRestTime = exercise.restTime || 90;
@@ -270,7 +275,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           <div className="w-7">SET</div>
           <div className="w-16 text-center">PREV</div>
           {CATEGORIES[exercise.category]?.fields.map(f => (
-            <div key={f} className="flex-1 text-center uppercase">{f === 'assistedWeight' ? '-LBS' : f === 'duration' ? 'SEC' : f === 'distance' ? 'KM' : f === 'bandColor' ? 'BAND' : f}</div>
+            <div key={f} className="flex-1 text-center uppercase">{f === 'assistedWeight' ? '-LBS' : f === 'duration' ? 'SEC' : f === 'distance' ? 'MI' : f === 'bandColor' ? 'BAND' : f}</div>
           ))}
           <div className="w-16"></div>
         </div>
@@ -294,27 +299,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groups = getGroupedExercises();
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-gray-900 relative">
+    <div className="flex flex-col h-full bg-gray-900 relative">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
-      <div className="relative z-10 flex-1 min-h-0 flex flex-col">
+      <div className="relative z-10 flex flex-col h-full">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
 
-      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full truncate" />
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none" />
             <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-2 py-2 text-sm whitespace-nowrap">Cancel</button>
-            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-3 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
+            <button onClick={onFinish} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (
@@ -326,7 +331,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : navVisible ? 'pb-24' : 'pb-4'}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
+      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`}>
         {groups.map((group, groupIdx) => {
           if (group.type === 'superset') {
             return (
@@ -389,9 +394,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           showRPE={numpadState.field === 'reps'}
           rpeValue={activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.rpe}
           onRPEChange={handleRPEChange}
-          fieldLabel={numpadState.field === 'weight' ? 'Weight (lbs)' : numpadState.field === 'reps' ? 'Reps' : numpadState.field === 'duration' ? 'Duration (sec)' : numpadState.field === 'distance' ? 'Distance (km)' : numpadState.field}
+          fieldLabel={numpadState.field === 'weight' ? 'Weight (lbs)' : numpadState.field === 'reps' ? 'Reps' : numpadState.field === 'duration' ? 'Duration (sec)' : numpadState.field === 'distance' ? 'Distance (mi)' : numpadState.field}
         />
       )}
+
+      {/* Timer completion sound */}
+      <audio ref={timerAudioRef} src="/sounds/timer-complete.wav" preload="auto" />
       </div>
     </div>
   );
