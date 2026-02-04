@@ -84,7 +84,7 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
                 {rpeValue && <span className="text-rose-400 text-xs">{rpeValue}</span>}
               </button>
             ) : (
-              <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
+              <div></div>
             )}
 
             {['4', '5', '6'].map(d => (
@@ -98,11 +98,7 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
             {['7', '8', '9'].map(d => (
               <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
             ))}
-            {showRPE ? (
-              <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
-            ) : (
-              <div></div>
-            )}
+            <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
 
             {/* Bottom row: 0 (double wide), ., Next */}
             <button onClick={() => handleDigit('0')} className="col-span-2 bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">0</button>
