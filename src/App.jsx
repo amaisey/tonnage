@@ -181,7 +181,7 @@ function App() {
           )}
         </div>
 
-        <nav className={`bg-gray-900 flex-none flex justify-around px-4 pt-2 pb-4 transition-transform duration-300 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}>
+        <nav className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 pb-4 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}>
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
