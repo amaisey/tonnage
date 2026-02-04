@@ -184,7 +184,10 @@ function App() {
           )}
         </div>
 
-        <nav className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <nav
+          className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}
+          style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 34px))' }}
+        >
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;

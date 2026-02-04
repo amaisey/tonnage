@@ -184,15 +184,9 @@ function App() {
           )}
         </div>
 
-        {/* Safe area fill - covers the home indicator area on iOS PWA */}
-        <div
-          className={`fixed left-0 right-0 bg-gray-900 z-40 transition-transform duration-300 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}
-          style={{ bottom: 0, height: 'env(safe-area-inset-bottom)' }}
-        />
-
         <nav
-          className={`fixed left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 pb-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}
-          style={{ bottom: 'env(safe-area-inset-bottom)' }}
+          className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}
+          style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 34px))' }}
         >
           {tabs.map(tab => {
             const Icon = tab.icon;
