@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
-import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
+import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
@@ -11,6 +11,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
+  const [bandPickerState, setBandPickerState] = useState(null); // { exIndex, setIndex, currentColor }
   const intervalRef = useRef(null);
   const timerAudioRef = useRef(null);
   const restTimeRef = useRef(null);
@@ -159,6 +160,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setActiveWorkout(updated);
   };
 
+  const removeSet = (exIndex, setIndex) => {
+    const updated = { ...activeWorkout };
+    const exercise = updated.exercises[exIndex];
+    if (exercise.sets.length > 1) {
+      exercise.sets.splice(setIndex, 1);
+      setActiveWorkout(updated);
+    }
+  };
+
+  const openBandPicker = (exIndex, setIndex, currentColor) => {
+    setBandPickerState({ exIndex, setIndex, currentColor });
+  };
+
+  const selectBandColor = (color) => {
+    if (bandPickerState) {
+      updateSet(bandPickerState.exIndex, bandPickerState.setIndex, 'bandColor', color);
+      setBandPickerState(null);
+    }
+  };
+
   const removeExercise = (index) => {
     const updated = { ...activeWorkout };
     updated.exercises.splice(index, 1);
@@ -288,7 +309,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             restTime={exerciseRestTime}
             onUpdate={(field, value) => updateSet(exIndex, setIndex, field, value)}
             onComplete={() => toggleSetComplete(exIndex, setIndex)}
+            onRemove={exercise.sets.length > 1 ? () => removeSet(exIndex, setIndex) : null}
             onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)}
+            onOpenBandPicker={(color) => openBandPicker(exIndex, setIndex, color)}
             activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null} />
         ))}
         <button onClick={() => addSet(exIndex)}
@@ -429,6 +452,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             </div>
           </div>
         </div>
+      )}
+
+      {/* Band Color Picker Modal */}
+      {bandPickerState && (
+        <>
+          <div className="fixed inset-0 z-[100] bg-black/50" onClick={() => setBandPickerState(null)} />
+          <div className="fixed left-4 right-4 bg-gray-800 rounded-xl shadow-2xl z-[101] p-3 border border-gray-700" style={{ top: '50%', transform: 'translateY(-50%)' }}>
+            <div className="text-center text-white font-medium mb-3 pb-2 border-b border-gray-700">Select Band Color</div>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(BAND_COLORS).map(([color, info]) => (
+                <button
+                  key={color}
+                  onClick={() => selectBandColor(color)}
+                  className={`${info.bg} ${info.text} px-3 py-3 rounded-lg text-sm font-medium ${bandPickerState.currentColor === color ? 'ring-2 ring-white' : ''}`}
+                >
+                  {info.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       {/* Number Pad */}

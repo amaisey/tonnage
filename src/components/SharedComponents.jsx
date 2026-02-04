@@ -112,9 +112,8 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
 };
 
 // Set Input Row Component with rest time display
-const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, activeField }) => {
+const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
-  const [showBandPicker, setShowBandPicker] = useState(false);
   const rowRef = useRef(null);
 
   // Scroll into view when this row becomes active
@@ -132,34 +131,13 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       const currentColor = set.bandColor || 'red';
       const colorInfo = BAND_COLORS[currentColor] || BAND_COLORS.red;
       return (
-        <div key={field} className="flex-1 relative">
+        <div key={field} className="flex-1">
           <button
-            onClick={() => setShowBandPicker(!showBandPicker)}
+            onClick={() => onOpenBandPicker ? onOpenBandPicker(currentColor) : onUpdate('bandColor', currentColor === 'red' ? 'green' : 'red')}
             className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-2 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
           >
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
-          {showBandPicker && (
-            <>
-              {/* Backdrop to close on tap outside */}
-              <div className="fixed inset-0 z-[100]" onClick={() => setShowBandPicker(false)} />
-              {/* Band picker modal */}
-              <div className="fixed left-4 right-4 bg-gray-800 rounded-xl shadow-2xl z-[101] p-2 border border-gray-700" style={{ top: '50%', transform: 'translateY(-50%)' }}>
-                <div className="text-center text-white font-medium mb-2 pb-2 border-b border-gray-700">Select Band Color</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(BAND_COLORS).map(([color, info]) => (
-                    <button
-                      key={color}
-                      onClick={() => { onUpdate('bandColor', color); setShowBandPicker(false); }}
-                      className={`${info.bg} ${info.text} px-3 py-3 rounded-lg text-sm font-medium`}
-                    >
-                      {info.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
         </div>
       );
     }
