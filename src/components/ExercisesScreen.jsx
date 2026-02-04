@@ -53,7 +53,7 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4" onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
+      <div className="flex-1 overflow-y-auto p-4 pb-24" onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
         {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([bodyPart, exs]) => (
           <div key={bodyPart} className="mb-6">
             <h3 className="text-sm font-semibold text-teal-400/80 mb-2">{bodyPart}</h3>

@@ -326,7 +326,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
+      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : 'pb-24'}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
         {groups.map((group, groupIdx) => {
           if (group.type === 'superset') {
             return (
