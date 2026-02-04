@@ -305,14 +305,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
 
-      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none" />
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
             <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
             <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">Finish</button>
           </div>

@@ -121,7 +121,7 @@ function App() {
 
   return (
     <HistoryMigration>
-      <div className="w-full h-[100dvh] bg-gray-900 flex flex-col overflow-hidden">
+      <div className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'workout' && (
             <WorkoutScreen
@@ -162,7 +162,7 @@ function App() {
           )}
         </div>
 
-        <nav className="bg-gray-900 shrink-0 flex justify-around px-4 py-2 pb-6">
+        <nav className="bg-gray-900 shrink-0 flex justify-around px-4 py-2">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
