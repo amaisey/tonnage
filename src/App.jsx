@@ -64,9 +64,10 @@ function App() {
     const exercisesWithPrevData = await Promise.all(
       template.exercises.map(async (ex) => {
         const prevData = await getPreviousData(ex.name);
+        // Mark all pre-filled values as proposed (50% opacity) until user edits them
         const sets = prevData && prevData.length > 0
-          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined }))
-          : ex.sets.map(s => ({ ...s, completed: false }));
+          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false }))
+          : ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
         return {
           ...ex,
           restTime: ex.restTime || 90,

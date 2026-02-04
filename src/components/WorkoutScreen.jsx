@@ -12,6 +12,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
   const [bandPickerState, setBandPickerState] = useState(null); // { exIndex, setIndex, currentColor }
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState(null); // exercise index pending deletion
   const intervalRef = useRef(null);
   const timerAudioRef = useRef(null);
   const restTimeRef = useRef(null);
@@ -206,6 +207,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const updated = { ...activeWorkout };
     updated.exercises.splice(index, 1);
     setActiveWorkout(updated);
+    setDeleteConfirmIndex(null);
   };
 
   const unlinkSuperset = (exIndex) => {
@@ -330,7 +332,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                 <Icons.Unlink />
               </button>
             )}
-            <button onClick={() => removeExercise(exIndex)} className="text-red-400 hover:text-red-300 p-1"><Icons.X /></button>
+            {/* Delete button with confirmation */}
+            {deleteConfirmIndex === exIndex ? (
+              <div className="flex items-center gap-1">
+                <button onClick={() => removeExercise(exIndex)} className="text-xs bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+                <button onClick={() => setDeleteConfirmIndex(null)} className="text-xs text-gray-400 px-1">Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setDeleteConfirmIndex(exIndex)} className="text-red-400 hover:text-red-300 p-1"><Icons.X /></button>
+            )}
           </div>
         </div>
 
