@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
@@ -23,6 +23,22 @@ function App() {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+  const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
+  const lastScrollY = useRef(0);
+
+  // Scroll handler for hiding/showing navbar
+  const handleScroll = useCallback((scrollY) => {
+    const scrollingDown = scrollY > lastScrollY.current && scrollY > 50;
+    const scrollingUp = scrollY < lastScrollY.current;
+
+    if (scrollingDown) {
+      setNavbarHiddenByScroll(true);
+    } else if (scrollingUp) {
+      setNavbarHiddenByScroll(false);
+    }
+
+    lastScrollY.current = scrollY;
+  }, []);
 
   // Hook for getting previous exercise data from IndexedDB
   const { getPreviousData, clearCache } = usePreviousExerciseData();
@@ -133,6 +149,7 @@ function App() {
               exercises={exercises}
               getPreviousData={getPreviousData}
               onNumpadStateChange={setIsNumpadOpen}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'exercises' && (
@@ -164,8 +181,8 @@ function App() {
           )}
         </div>
 
-        {!isNumpadOpen && (
-          <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+        {!isNumpadOpen && !navbarHiddenByScroll && (
+          <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2 transition-transform duration-200" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
             <div className="flex justify-around">
               {tabs.map(tab => {
                 const Icon = tab.icon;

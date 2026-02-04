@@ -4,7 +4,7 @@ import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
@@ -336,7 +336,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`}>
+      <div
+        className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`}
+        onScroll={(e) => onScroll?.(e.target.scrollTop)}
+      >
         {groups.map((group, groupIdx) => {
           if (group.type === 'superset') {
             return (
