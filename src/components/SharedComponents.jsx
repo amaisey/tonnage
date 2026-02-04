@@ -68,14 +68,12 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
         </div>
       ) : (
         <div className="p-3">
-          {/* Header with field label and dismiss button */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10"></div>
-            <div className="text-gray-400 text-xs uppercase">{fieldLabel}</div>
-            <button onClick={onClose} className="w-10 h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </button>
-          </div>
+          {/* Header with field label */}
+          <div className="text-center text-gray-400 text-xs uppercase mb-2">{fieldLabel}</div>
+          {/* Orange dismiss button - full width */}
+          <button onClick={onClose} className="w-full h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center justify-center mb-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </button>
           <div className="grid grid-cols-4 gap-2">
             {['1', '2', '3'].map(d => (
               <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
@@ -86,7 +84,7 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
                 {rpeValue && <span className="text-rose-400 text-xs">{rpeValue}</span>}
               </button>
             ) : (
-              <button onClick={handleDecimal} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">.</button>
+              <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
             )}
 
             {['4', '5', '6'].map(d => (
@@ -100,11 +98,15 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
             {['7', '8', '9'].map(d => (
               <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
             ))}
-            <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
+            {showRPE ? (
+              <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
+            ) : (
+              <div></div>
+            )}
 
-            <div></div>
-            <button onClick={() => handleDigit('0')} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">0</button>
-            <div></div>
+            {/* Bottom row: 0 (double wide), ., Next */}
+            <button onClick={() => handleDigit('0')} className="col-span-2 bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">0</button>
+            <button onClick={handleDecimal} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">.</button>
             <button onClick={onNext} className="bg-cyan-600 text-white text-base font-bold py-4 rounded-lg hover:bg-cyan-700">Next</button>
           </div>
         </div>
