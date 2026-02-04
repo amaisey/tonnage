@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import { useWorkoutHistory, useWorkoutCount } from '../hooks/useWorkoutDb';
 import { workoutDb } from '../db/workoutDb';
 
-const HistoryScreen = ({ onRefreshNeeded }) => {
+const HistoryScreen = ({ onRefreshNeeded, onScroll }) => {
   const [showExport, setShowExport] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [stats, setStats] = useState({ totalTime: 0, totalVolume: 0 });
@@ -42,16 +42,20 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
     calcStats();
   }, [totalCount]);
 
-  // Infinite scroll handler
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current || loading || !hasMore) return;
+  // Infinite scroll handler + nav hide/show
+  const handleScrollEvent = useCallback(() => {
+    if (!scrollRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+
+    // Notify parent for nav hide/show
+    if (onScroll) onScroll(scrollTop);
+
     // Load more when within 200px of bottom
-    if (scrollHeight - scrollTop - clientHeight < 200) {
+    if (!loading && hasMore && scrollHeight - scrollTop - clientHeight < 200) {
       loadMore();
     }
-  }, [loading, hasMore, loadMore]);
+  }, [loading, hasMore, loadMore, onScroll]);
 
   // Export all history
   const handleExport = async () => {
@@ -80,13 +84,13 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
   };
 
   return (
-    <div className="relative flex flex-col h-full bg-black overflow-hidden">
+    <div className="relative flex-1 min-h-0 flex flex-col bg-gray-900 overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img src="/backgrounds/bg-10.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80"></div>
       </div>
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col">
         {/* Header with Stats */}
         <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-4">
@@ -118,7 +122,7 @@ const HistoryScreen = ({ onRefreshNeeded }) => {
 
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
+          onScroll={handleScrollEvent}
           className="flex-1 overflow-y-auto p-4"
         >
           {totalCount === 0 && !loading ? (

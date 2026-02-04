@@ -4,7 +4,7 @@ import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/con
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
 
-const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [] }) => {
+const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [], onScroll }) => {
   const [search, setSearch] = useState('');
   const [selectedBodyPart, setSelectedBodyPart] = useState('All');
   const [editingExercise, setEditingExercise] = useState(null);
@@ -24,13 +24,13 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
   }, {});
 
   return (
-    <div className="relative flex flex-col h-full bg-gray-900 overflow-hidden">
+    <div className="relative flex-1 min-h-0 flex flex-col bg-gray-900 overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img src="/backgrounds/bg-2.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/60"></div>
       </div>
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col">
       <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-white">Exercises</h2>
@@ -53,7 +53,7 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4" onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
         {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([bodyPart, exs]) => (
           <div key={bodyPart} className="mb-6">
             <h3 className="text-sm font-semibold text-teal-400/80 mb-2">{bodyPart}</h3>

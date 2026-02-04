@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
@@ -22,6 +22,22 @@ function App() {
   const [completedWorkout, setCompletedWorkout] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [navVisible, setNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  // Handle scroll to show/hide nav bar
+  const handleScroll = useCallback((scrollTop) => {
+    const currentScrollY = scrollTop;
+    const isScrollingUp = currentScrollY < lastScrollY.current;
+    const isNearTop = currentScrollY < 50;
+
+    if (isNearTop || isScrollingUp) {
+      setNavVisible(true);
+    } else if (currentScrollY > lastScrollY.current + 10) {
+      setNavVisible(false);
+    }
+    lastScrollY.current = currentScrollY;
+  }, []);
 
   // Hook for getting previous exercise data from IndexedDB
   const { getPreviousData, clearCache } = usePreviousExerciseData();
@@ -131,6 +147,7 @@ function App() {
               onCancel={cancelWorkout}
               exercises={exercises}
               getPreviousData={getPreviousData}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'exercises' && (
@@ -139,6 +156,7 @@ function App() {
               onAddExercise={ex => setExercises([...exercises, ex])}
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'templates' && (
@@ -155,14 +173,15 @@ function App() {
               onDeleteFolder={id => setFolders(prev => prev.filter(f => f.id !== id))}
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'history' && (
-            <HistoryScreen onRefreshNeeded={historyRefreshKey} />
+            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} />
           )}
         </div>
 
-        <nav className="bg-gray-900 shrink-0 flex justify-around px-4 py-2">
+        <nav className={`bg-gray-900 flex-none flex justify-around px-4 pt-2 pb-4 transition-transform duration-300 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}>
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;

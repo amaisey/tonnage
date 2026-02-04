@@ -4,7 +4,7 @@ import { CATEGORIES, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onScroll }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
@@ -294,27 +294,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groups = getGroupedExercises();
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 relative">
+    <div className="flex-1 min-h-0 flex flex-col bg-gray-900 relative">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
         onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
 
       <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0 overflow-hidden">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full truncate" />
             <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm">Cancel</button>
-            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">Finish</button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-2 py-2 text-sm whitespace-nowrap">Cancel</button>
+            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-3 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (
@@ -326,7 +326,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`}>
+      <div className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${numpadState ? 'pb-72' : ''}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
         {groups.map((group, groupIdx) => {
           if (group.type === 'superset') {
             return (
