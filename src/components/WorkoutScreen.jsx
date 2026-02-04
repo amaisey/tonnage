@@ -10,13 +10,22 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
+  const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
   const intervalRef = useRef(null);
   const timerAudioRef = useRef(null);
+  const restTimeRef = useRef(null);
 
   // Notify parent when numpad state changes
   useEffect(() => {
     onNumpadStateChange?.(numpadState !== null);
   }, [numpadState, onNumpadStateChange]);
+
+  // Auto-scroll to rest time options when editing
+  useEffect(() => {
+    if (editingRestTime !== null && restTimeRef.current) {
+      restTimeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [editingRestTime]);
 
   // Get previous workout data for a specific exercise
   const getPreviousExerciseData = (exerciseName) => {
@@ -231,7 +240,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             )}
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{exercise.name}</span>
+                <button onClick={() => setExerciseDetail(exercise)} className="font-semibold text-white hover:text-cyan-400 transition-colors text-left">{exercise.name}</button>
                 {typeInfo && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
@@ -249,7 +258,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
         {/* Rest time presets */}
         {editingRestTime === exIndex && (
-          <div className="mb-3 p-2 bg-gray-800/50 rounded-lg">
+          <div ref={restTimeRef} className="mb-3 p-2 bg-gray-800/50 rounded-lg">
             <div className="flex flex-wrap gap-1">
               {restTimePresets.map(t => (
                 <button key={t} onClick={() => updateExerciseRestTime(exIndex, t)}
@@ -379,6 +388,43 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           onSelectMultiple={addExercises}
           onClose={() => setShowExerciseModal(false)}
         />
+      )}
+
+      {/* Exercise Detail Modal */}
+      {exerciseDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setExerciseDetail(null)}>
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-white/20" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">{exerciseDetail.name}</h3>
+              <button onClick={() => setExerciseDetail(null)} className="text-gray-400 hover:text-white p-1">
+                <Icons.X />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-sm w-20">Body Part</span>
+                <span className="text-white">{exerciseDetail.bodyPart}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-sm w-20">Category</span>
+                <span className="text-white capitalize">{exerciseDetail.category?.replace('_', ' ')}</span>
+              </div>
+              {exerciseDetail.exerciseType && (
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-400 text-sm w-20">Type</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${EXERCISE_TYPES[exerciseDetail.exerciseType]?.color || 'bg-gray-700'}`}>
+                    {EXERCISE_TYPES[exerciseDetail.exerciseType]?.label || exerciseDetail.exerciseType}
+                  </span>
+                </div>
+              )}
+              {exerciseDetail.notes && (
+                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg">
+                  <div className="text-sm text-amber-400">{exerciseDetail.notes}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Number Pad */}
