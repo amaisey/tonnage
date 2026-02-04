@@ -5,9 +5,22 @@ import { formatDuration, generateStravaDescription, getDefaultSetForCategory } f
 
 const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEChange, fieldLabel }) => {
   const [showRPEPicker, setShowRPEPicker] = useState(false);
+  const [hasEdited, setHasEdited] = useState(false);
+
+  // Reset hasEdited when field changes (e.g., when Next is pressed)
+  useEffect(() => {
+    setHasEdited(false);
+  }, [fieldLabel]);
 
   const handleDigit = (digit) => {
-    onChange(value + digit);
+    if (!hasEdited) {
+      // First keystroke - overwrite the existing value
+      onChange(digit);
+      setHasEdited(true);
+    } else {
+      // Subsequent keystrokes - append
+      onChange(value + digit);
+    }
   };
 
   const handleBackspace = () => {
@@ -97,6 +110,14 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
 const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, activeField }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const [showBandPicker, setShowBandPicker] = useState(false);
+  const rowRef = useRef(null);
+
+  // Scroll into view when this row becomes active
+  useEffect(() => {
+    if (activeField && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeField]);
 
   const renderInput = (field, fieldIndex) => {
     const isActive = activeField === field;
@@ -183,7 +204,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           <div className="flex-1 h-px bg-rose-700/30"></div>
         </div>
       )}
-      <div className={`flex items-center gap-2 p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
+      <div ref={rowRef} className={`flex items-center gap-2 p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
         <div className="w-7 text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
         <div className="w-16 text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
         {fields.map((field, idx) => renderInput(field, idx))}
