@@ -189,14 +189,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="relative flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-900 p-6 overflow-hidden">
+      <div className="relative flex flex-col items-center justify-center h-full bg-gray-900 overflow-hidden">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
         {/* Content */}
-        <div className="relative z-10 flex flex-col items-center">
+        <div className="relative z-10 flex flex-col items-center px-6">
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
             <div className="text-6xl mb-4 text-center">🏋️</div>
             <h2 className="text-2xl font-bold text-white mb-2 text-center">Ready to Train?</h2>

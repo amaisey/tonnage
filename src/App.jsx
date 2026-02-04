@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
@@ -26,9 +26,24 @@ function App() {
   const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
   const lastScrollY = useRef(0);
 
-  // Scroll handler for hiding/showing navbar
+  // Reset navbar scroll state when there's no active workout (empty state shouldn't hide navbar)
+  useEffect(() => {
+    if (!activeWorkout) {
+      setNavbarHiddenByScroll(false);
+      lastScrollY.current = 0;
+    }
+  }, [activeWorkout]);
+
+  // Scroll handler for hiding/showing navbar (only applies when there's scrollable content)
   const handleScroll = useCallback((scrollY) => {
-    const scrollingDown = scrollY > lastScrollY.current && scrollY > 50;
+    // Don't hide navbar if we're near the top
+    if (scrollY < 50) {
+      setNavbarHiddenByScroll(false);
+      lastScrollY.current = scrollY;
+      return;
+    }
+
+    const scrollingDown = scrollY > lastScrollY.current;
     const scrollingUp = scrollY < lastScrollY.current;
 
     if (scrollingDown) {
