@@ -198,9 +198,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black" style={{ overscrollBehavior: 'none', touchAction: 'none' }}>
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-black" style={{ touchAction: 'none' }}>
         {/* Background Image - fixed position */}
-        <div className="absolute inset-0 z-0">
+        <div className="fixed inset-0 z-0 bg-black">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
@@ -302,7 +302,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groups = getGroupedExercises();
 
   return (
-    <div className="flex flex-col h-full bg-black relative" style={{ overscrollBehavior: 'none' }}>
+    <div className="fixed inset-0 flex flex-col bg-black">
       {/* Background Image - fixed position */}
       <div className="fixed inset-0 z-0 bg-black">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
@@ -338,7 +338,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
-          overscrollBehavior: 'none'
+          overscrollBehavior: 'contain'
         }}
         onScroll={(e) => onScroll?.(e.target.scrollTop)}
       >

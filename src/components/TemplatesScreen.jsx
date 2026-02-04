@@ -15,7 +15,6 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   const [selectedForSuperset, setSelectedForSuperset] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
 
-  // Group exercises by superset
   const getGroupedExercises = () => {
     const groups = [];
     const used = new Set();
@@ -97,7 +96,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
       <div
         key={index}
         onClick={() => selectMode && toggleSelectForSuperset(index)}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${isSelected ? 'ring-2 ring-teal-500' : ''} bg-white/10 backdrop-blur-sm p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''} border border-white/20`}
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -147,8 +146,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Fixed Header */}
-      <div className="shrink-0 px-4 pb-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
         <h3 className="text-lg font-semibold text-white">Edit Template</h3>
         <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
@@ -156,7 +154,6 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         </button>
       </div>
 
-      {/* Select mode bar */}
       {selectMode && (
         <div className="shrink-0 p-3 bg-teal-900/50 border-b border-teal-700 flex items-center justify-between">
           <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
@@ -170,22 +167,21 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         </div>
       )}
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
         <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Template name"
-          className="w-full bg-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3 border border-white/20" />
+          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3" />
 
         <div className="flex gap-2 mb-3">
           <input type="number" value={estimatedTime} onChange={e => setEstimatedTime(e.target.value)} placeholder="Est. minutes"
-            className="flex-1 bg-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 text-sm border border-white/20" />
+            className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 text-sm" />
           <button onClick={() => setSelectMode(!selectMode)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium ${selectMode ? 'bg-teal-600 text-white' : 'bg-white/10 text-teal-400 border border-white/20'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-medium ${selectMode ? 'bg-teal-600 text-white' : 'bg-gray-800 text-teal-400'}`}>
             <Icons.Link /> Superset
           </button>
         </div>
 
         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Workout notes (optional)"
-          className="w-full bg-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-4 text-sm resize-none h-20 border border-white/20" />
+          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-4 text-sm resize-none h-20" />
 
         <div className="text-sm text-gray-400 mb-3">{exercises.length} exercises</div>
 
@@ -209,14 +205,13 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         })}
 
         <button onClick={() => setShowExercisePicker(true)}
-          className="w-full bg-white/5 border-2 border-dashed border-white/20 rounded-2xl p-6 text-gray-400 hover:border-rose-700 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
+          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-rose-700 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
           <Icons.Plus /> Add Exercise
         </button>
       </div>
 
-      {/* Fixed Footer */}
-      <div className="shrink-0 p-4 border-t border-white/10 bg-white/5 backdrop-blur-sm">
-        <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-white/10 text-red-400 py-3 rounded-xl font-medium hover:bg-white/20 border border-white/20">
+      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
+        <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-gray-800 text-red-400 py-3 rounded-xl font-medium hover:bg-gray-700">
           Delete Template
         </button>
       </div>
@@ -233,15 +228,14 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   );
 };
 
-const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises, onScroll, navVisible = true }) => {
+const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises, onScroll, navVisible }) => {
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [showImport, setShowImport] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
-  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null); // { folder, subfolderIds, templateCount, folderCount }
+  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null);
 
-  // Helper to get all nested subfolder IDs
   const getAllSubfolderIds = (parentId) => {
     const ids = [];
     const recurse = (pid) => {
@@ -254,13 +248,10 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
     return ids;
   };
 
-  // Execute folder deletion
   const executeDeleteFolder = (folder, subfolderIds) => {
-    // Delete all templates in this folder and subfolders
     [...subfolderIds, folder.id].forEach(fid => {
       templates.filter(t => t.folderId === fid).forEach(t => onDeleteTemplate(t.id));
     });
-    // Delete all subfolders then this folder
     subfolderIds.forEach(fid => onDeleteFolder(fid));
     onDeleteFolder(folder.id);
     setDeleteFolderConfirm(null);
@@ -281,131 +272,144 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   };
 
   return (
-    <div className="relative flex flex-col h-full bg-black overflow-hidden">
-      {/* Background Image */}
-      <div className="absolute inset-0 z-0">
-        <img src="/backgrounds/bg-4.jpg" alt="" className="w-full h-full object-cover opacity-65" />
+    <div className="fixed inset-0 flex flex-col bg-black">
+      {/* Background Image - fixed position */}
+      <div className="fixed inset-0 z-0 bg-black">
+        <img src="/backgrounds/bg-4.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
+
       <div className="relative z-10 flex flex-col h-full">
-      <div className="px-4 pb-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-2xl font-bold text-white">Templates</h2>
-          <div className="flex gap-2">
-            <button onClick={() => setShowCreateFolder(true)} className="p-2 text-teal-400 hover:text-teal-300 rounded-lg bg-white/10 border border-white/20" title="New Folder">
-              <Icons.Folder />
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-2xl font-bold text-white">Templates</h2>
+            <div className="flex gap-2">
+              <button onClick={() => setShowCreateFolder(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10" title="New Folder">
+                <Icons.Folder />
+              </button>
+              <button onClick={() => setShowImport(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10" title="Import JSON">
+                <Icons.Import />
+              </button>
+              <button onClick={() => setShowCreateTemplate(true)} className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/30 flex items-center gap-1 border border-white/30">
+                <Icons.Plus /> New
+              </button>
+            </div>
+          </div>
+          {/* Breadcrumbs */}
+          <div className="flex items-center gap-1 text-sm overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <button onClick={() => setCurrentFolderId('root')}
+              className={`px-2 py-1 rounded ${currentFolderId === 'root' ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
+              All Templates
             </button>
-            <button onClick={() => setShowImport(true)} className="p-2 text-cyan-400 hover:text-cyan-300 rounded-lg bg-white/10 border border-white/20" title="Import JSON">
-              <Icons.Import />
-            </button>
-            <button onClick={() => setShowCreateTemplate(true)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800 flex items-center gap-1">
-              <Icons.Plus /> New
-            </button>
+            {getBreadcrumbs().map((crumb, i) => (
+              <Fragment key={crumb.id}>
+                <Icons.ChevronRight />
+                <button onClick={() => setCurrentFolderId(crumb.id)}
+                  className={`px-2 py-1 rounded ${currentFolderId === crumb.id ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
+                  {crumb.name}
+                </button>
+              </Fragment>
+            ))}
           </div>
         </div>
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-1 text-sm overflow-x-auto">
-          {getBreadcrumbs().map((crumb, i) => (
-            <Fragment key={crumb.id}>
-              {i > 0 && <Icons.ChevronRight />}
-              <button onClick={() => setCurrentFolderId(crumb.id)}
-                className={`px-2 py-1 rounded ${currentFolderId === crumb.id ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
-                {crumb.name === 'Root' ? 'All Templates' : crumb.name}
-              </button>
-            </Fragment>
-          ))}
-        </div>
-      </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 ${navVisible ? 'pb-24' : 'pb-4'}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
-        {/* Subfolders */}
-        {childFolders.map(folder => {
-          const allSubfolderIds = getAllSubfolderIds(folder.id);
-          const totalTemplateCount = templates.filter(t => t.folderId === folder.id || allSubfolderIds.includes(t.folderId)).length;
-          const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
+        {/* Scrollable Content */}
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          style={{
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
+            overscrollBehavior: 'contain'
+          }}
+          onScroll={(e) => onScroll?.(e.target.scrollTop)}
+        >
+          {/* Subfolders */}
+          {childFolders.map(folder => {
+            const allSubfolderIds = getAllSubfolderIds(folder.id);
+            const totalTemplateCount = templates.filter(t => t.folderId === folder.id || allSubfolderIds.includes(t.folderId)).length;
+            const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
 
-          return (
-            <div key={folder.id} className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 group border border-white/20 hover:border-teal-500/50">
-              <button onClick={() => setCurrentFolderId(folder.id)} className="flex-1 flex items-center gap-3 text-left">
-                <span className="text-teal-400"><Icons.Folder /></span>
+            return (
+              <div key={folder.id} className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 group border border-white/20">
+                <button onClick={() => setCurrentFolderId(folder.id)} className="flex-1 flex items-center gap-3 text-left">
+                  <span className="text-teal-400"><Icons.Folder /></span>
+                  <div>
+                    <span className="font-medium text-white">{folder.name}</span>
+                    <div className="text-xs text-gray-500">
+                      {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isEmpty) {
+                      onDeleteFolder(folder.id);
+                    } else {
+                      setDeleteFolderConfirm({
+                        folder,
+                        subfolderIds: allSubfolderIds,
+                        templateCount: totalTemplateCount,
+                        folderCount: allSubfolderIds.length
+                      });
+                    }
+                  }}
+                  className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Icons.Trash />
+                </button>
+                <button onClick={() => setCurrentFolderId(folder.id)} className="text-teal-500/70 hover:text-teal-400">
+                  <Icons.ChevronRight />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Templates in current folder */}
+          {folderTemplates.map(template => (
+            <div key={template.id} className="bg-gray-900/80 rounded-2xl p-4 mb-3 border border-gray-800/50 hover:border-cyan-800/30 transition-colors">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <span className="font-medium text-white">{folder.name}</span>
-                  <div className="text-xs text-gray-400">
-                    {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
+                  <h3 className="text-lg font-semibold text-white">{template.name}</h3>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                    <span className="text-cyan-400/70">{template.exercises.length} exercises</span>
+                    {template.estimatedTime && (
+                      <span className="flex items-center gap-1 text-teal-400/70">
+                        <Icons.TimerSmall /> ~{template.estimatedTime} min
+                      </span>
+                    )}
                   </div>
                 </div>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isEmpty) {
-                    // Delete immediately if empty
-                    onDeleteFolder(folder.id);
-                  } else {
-                    // Show confirmation modal
-                    setDeleteFolderConfirm({
-                      folder,
-                      subfolderIds: allSubfolderIds,
-                      templateCount: totalTemplateCount,
-                      folderCount: allSubfolderIds.length
-                    });
-                  }
-                }}
-                className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Icons.Trash />
-              </button>
-              <button onClick={() => setCurrentFolderId(folder.id)} className="text-teal-400">
-                <Icons.ChevronRight />
-              </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400/70 hover:text-cyan-300 rounded-lg hover:bg-gray-800">
+                    <Icons.Edit />
+                  </button>
+                  <button onClick={() => onStartTemplate(template)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800">Start</button>
+                </div>
+              </div>
+              {template.notes && (
+                <div className="bg-teal-900/20 border border-teal-700/30 rounded-lg p-2 mb-3">
+                  <div className="text-xs text-teal-300 flex items-center gap-1">
+                    <span>📋</span> {template.notes}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1">
+                {template.exercises.slice(0, 4).map((ex, i) => (
+                  <div key={i} className="text-sm text-gray-400 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${ex.supersetId ? 'bg-teal-500' : 'bg-cyan-600/70'}`}></span>
+                    {ex.name} - {ex.sets.length} sets
+                  </div>
+                ))}
+                {template.exercises.length > 4 && <div className="text-xs text-gray-500">+{template.exercises.length - 4} more exercises</div>}
+              </div>
             </div>
-          );
-        })}
+          ))}
 
-        {/* Templates in current folder */}
-        {folderTemplates.map(template => (
-          <div key={template.id} className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 mb-3 border border-white/20 hover:border-cyan-500/50 transition-colors">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-lg font-semibold text-white">{template.name}</h3>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                  <span className="text-cyan-400">{template.exercises.length} exercises</span>
-                  {template.estimatedTime && (
-                    <span className="flex items-center gap-1 text-teal-400">
-                      <Icons.TimerSmall /> ~{template.estimatedTime} min
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400 hover:text-cyan-300 rounded-lg bg-white/10 border border-white/20">
-                  <Icons.Edit />
-                </button>
-                <button onClick={() => onStartTemplate(template)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800">Start</button>
-              </div>
-            </div>
-            {template.notes && (
-              <div className="bg-teal-500/10 border border-teal-500/30 rounded-lg p-2 mb-3">
-                <div className="text-xs text-teal-300 flex items-center gap-1">
-                  <span>📋</span> {template.notes}
-                </div>
-              </div>
-            )}
-            <div className="space-y-1">
-              {template.exercises.slice(0, 4).map((ex, i) => (
-                <div key={i} className="text-sm text-gray-300 flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${ex.supersetId ? 'bg-teal-500' : 'bg-cyan-500'}`}></span>
-                  {ex.name} - {ex.sets.length} sets
-                </div>
-              ))}
-              {template.exercises.length > 4 && <div className="text-xs text-gray-500">+{template.exercises.length - 4} more exercises</div>}
-            </div>
-          </div>
-        ))}
-
-        {childFolders.length === 0 && folderTemplates.length === 0 && (
-          <div className="text-center text-gray-400 py-8">No templates in this folder</div>
-        )}
+          {childFolders.length === 0 && folderTemplates.length === 0 && (
+            <div className="text-center text-gray-400 py-8">No templates in this folder</div>
+          )}
+        </div>
       </div>
 
       {showImport && (
@@ -439,7 +443,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
 
       {deleteFolderConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-white/20">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold text-white mb-4">Delete Folder?</h3>
             <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-4">
               <p className="text-red-400 text-sm">
@@ -457,7 +461,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteFolderConfirm(null)}
-                className="flex-1 bg-white/10 text-white py-3 rounded-xl font-medium hover:bg-white/20 border border-white/20"
+                className="flex-1 bg-gray-700 text-white py-3 rounded-xl font-medium hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -471,7 +475,6 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 };
