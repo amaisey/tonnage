@@ -6,35 +6,46 @@ import { formatDuration, generateStravaDescription, getDefaultSetForCategory } f
 const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEChange, fieldLabel }) => {
   const [showRPEPicker, setShowRPEPicker] = useState(false);
   const [hasEdited, setHasEdited] = useState(false);
+  const [localValue, setLocalValue] = useState(value);
+  const valueRef = useRef(value);
 
-  // Reset hasEdited when field changes (e.g., when Next is pressed)
+  // Sync local value with prop when field changes
   useEffect(() => {
+    setLocalValue(value);
+    valueRef.current = value;
     setHasEdited(false);
-  }, [fieldLabel]);
+  }, [fieldLabel, value]);
+
+  // Update parent and local state together
+  const updateValue = (newValue) => {
+    valueRef.current = newValue;
+    setLocalValue(newValue);
+    onChange(newValue);
+  };
 
   const handleDigit = (digit) => {
     if (!hasEdited) {
       // First keystroke - overwrite the existing value
-      onChange(digit);
+      updateValue(digit);
       setHasEdited(true);
     } else {
-      // Subsequent keystrokes - append
-      onChange(value + digit);
+      // Subsequent keystrokes - append using ref for latest value
+      updateValue(valueRef.current + digit);
     }
   };
 
   const handleBackspace = () => {
-    onChange(value.slice(0, -1));
+    updateValue(valueRef.current.slice(0, -1));
   };
 
   const handleDecimal = () => {
-    if (!value.includes('.')) onChange(value + '.');
+    if (!valueRef.current.includes('.')) updateValue(valueRef.current + '.');
   };
 
   const handlePlusMinus = (delta) => {
-    const num = parseFloat(value) || 0;
+    const num = parseFloat(valueRef.current) || 0;
     const newVal = Math.max(0, num + delta);
-    onChange(String(newVal));
+    updateValue(String(newVal));
   };
 
   const rpeOptions = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
@@ -116,10 +127,23 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const rowRef = useRef(null);
 
-  // Scroll into view when this row becomes active
+  // Scroll into view when this row becomes active - position well above numpad
   useEffect(() => {
     if (activeField && rowRef.current) {
-      rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Use a delay to ensure layout is complete, then scroll with offset to stay above numpad
+      setTimeout(() => {
+        const element = rowRef.current;
+        if (!element) return;
+        const container = element.closest('[style*="overflow"]') || element.parentElement?.parentElement?.parentElement;
+        if (container) {
+          // Calculate position to put element in upper portion of visible area (above numpad)
+          const elementRect = element.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const scrollTop = container.scrollTop;
+          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - 120; // 120px from top
+          container.scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
+        }
+      }, 50);
     }
   }, [activeField]);
 

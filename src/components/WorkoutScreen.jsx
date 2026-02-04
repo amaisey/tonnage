@@ -371,7 +371,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         {/* Sets */}
         {exercise.sets.map((set, setIndex) => (
           <SetInputRow key={setIndex} set={set} setIndex={setIndex} category={exercise.category}
-            previousSet={exercise.previousSets?.[setIndex] || null}
+            previousSet={setIndex > 0 ? exercise.sets[setIndex - 1] : null}
             previousWorkoutSet={exercise.previousSets?.[setIndex] || null}
             restTime={exerciseRestTime}
             onUpdate={(field, value) => updateSet(exIndex, setIndex, field, value)}

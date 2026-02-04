@@ -330,16 +330,18 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
             const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
 
             return (
-              <div key={folder.id} className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 group border border-white/20">
-                <button onClick={() => setCurrentFolderId(folder.id)} className="flex-1 flex items-center gap-3 text-left">
-                  <span className="text-teal-400"><Icons.Folder /></span>
-                  <div>
-                    <span className="font-medium text-white">{folder.name}</span>
-                    <div className="text-xs text-gray-500">
-                      {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
-                    </div>
+              <div
+                key={folder.id}
+                onClick={() => setCurrentFolderId(folder.id)}
+                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 group border border-white/20 cursor-pointer"
+              >
+                <span className="text-teal-400"><Icons.Folder /></span>
+                <div className="flex-1">
+                  <span className="font-medium text-white">{folder.name}</span>
+                  <div className="text-xs text-gray-500">
+                    {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
                   </div>
-                </button>
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -358,9 +360,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
                 >
                   <Icons.Trash />
                 </button>
-                <button onClick={() => setCurrentFolderId(folder.id)} className="text-teal-500/70 hover:text-teal-400">
-                  <Icons.ChevronRight />
-                </button>
+                <span className="text-teal-500/70"><Icons.ChevronRight /></span>
               </div>
             );
           })}
