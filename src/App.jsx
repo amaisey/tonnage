@@ -198,7 +198,7 @@ function App() {
 
         {!isNumpadOpen && !navbarHiddenByScroll && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 transition-all duration-300" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-            <div className="flex items-center gap-1 px-3 py-2 bg-black/60 backdrop-blur-xl border border-white/20 rounded-full shadow-lg">
+            <div className="flex items-center gap-1 px-3 py-2 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full shadow-lg shadow-black/20">
               {tabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;

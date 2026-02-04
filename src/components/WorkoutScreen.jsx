@@ -198,9 +198,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   if (!activeWorkout) {
     return (
-      <div className="relative flex flex-col items-center justify-center h-full bg-gray-900 overflow-hidden">
-        {/* Background Image */}
-        <div className="absolute inset-0 z-0">
+      <div className="relative flex flex-col items-center justify-center h-full bg-black overflow-hidden">
+        {/* Background Image - fixed position */}
+        <div className="fixed inset-0 z-0">
           <img src="/backgrounds/bg-5.jpg" alt="" className="w-full h-full object-cover opacity-50" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
         </div>
@@ -302,9 +302,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groups = getGroupedExercises();
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 relative">
-      {/* Background Image */}
-      <div className="absolute inset-0 z-0">
+    <div className="flex flex-col h-full bg-black relative">
+      {/* Background Image - fixed position */}
+      <div className="fixed inset-0 z-0">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
