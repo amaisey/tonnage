@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
@@ -22,22 +22,7 @@ function App() {
   const [completedWorkout, setCompletedWorkout] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [navVisible, setNavVisible] = useState(true);
-  const lastScrollY = useRef(0);
-
-  // Handle scroll to show/hide nav bar
-  const handleScroll = useCallback((scrollTop) => {
-    const currentScrollY = scrollTop;
-    const isScrollingUp = currentScrollY < lastScrollY.current;
-    const isNearTop = currentScrollY < 50;
-
-    if (isNearTop || isScrollingUp) {
-      setNavVisible(true);
-    } else if (currentScrollY > lastScrollY.current + 10) {
-      setNavVisible(false);
-    }
-    lastScrollY.current = currentScrollY;
-  }, []);
+  const [isNumpadOpen, setIsNumpadOpen] = useState(false);
 
   // Hook for getting previous exercise data from IndexedDB
   const { getPreviousData, clearCache } = usePreviousExerciseData();
@@ -137,7 +122,7 @@ function App() {
 
   return (
     <HistoryMigration>
-      <div className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden">
+      <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'workout' && (
             <WorkoutScreen
@@ -147,8 +132,7 @@ function App() {
               onCancel={cancelWorkout}
               exercises={exercises}
               getPreviousData={getPreviousData}
-              onScroll={handleScroll}
-              navVisible={navVisible}
+              onNumpadStateChange={setIsNumpadOpen}
             />
           )}
           {activeTab === 'exercises' && (
@@ -157,8 +141,6 @@ function App() {
               onAddExercise={ex => setExercises([...exercises, ex])}
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
-              onScroll={handleScroll}
-              navVisible={navVisible}
             />
           )}
           {activeTab === 'templates' && (
@@ -175,40 +157,39 @@ function App() {
               onDeleteFolder={id => setFolders(prev => prev.filter(f => f.id !== id))}
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
-              onScroll={handleScroll}
-              navVisible={navVisible}
             />
           )}
           {activeTab === 'history' && (
-            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} navVisible={navVisible} />
+            <HistoryScreen onRefreshNeeded={historyRefreshKey} />
           )}
         </div>
 
-        <nav
-          className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}
-          style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 34px))' }}
-        >
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  if (tab.id === 'settings') {
-                    setShowSettings(true);
-                  } else {
-                    setActiveTab(tab.id);
-                  }
-                }}
-                className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                <Icon />
-                <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {!isNumpadOpen && (
+          <div className="bg-gray-900 border-t border-gray-800/50 px-4 py-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+            <div className="flex justify-around">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      if (tab.id === 'settings') {
+                        setShowSettings(true);
+                      } else {
+                        setActiveTab(tab.id);
+                      }
+                    }}
+                    className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    <Icon />
+                    <span className={`text-xs mt-1 ${isActive ? 'text-cyan-400' : ''}`}>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {completedWorkout && (
           <WorkoutCompleteModal
