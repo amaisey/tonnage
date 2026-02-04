@@ -137,7 +137,7 @@ function App() {
 
   return (
     <HistoryMigration>
-      <div className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden">
+      <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'workout' && (
             <WorkoutScreen
@@ -181,7 +181,7 @@ function App() {
           )}
         </div>
 
-        <nav className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 pb-4 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`}>
+        <nav className={`fixed bottom-0 left-0 right-0 bg-gray-900 flex justify-around px-4 pt-2 transition-transform duration-300 z-40 ${navVisible ? 'translate-y-0' : 'translate-y-full'}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.id === 'settings' ? showSettings : activeTab === tab.id;
