@@ -189,10 +189,12 @@ function App() {
               onDeleteFolder={id => setFolders(prev => prev.filter(f => f.id !== id))}
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
+              onScroll={handleScroll}
+              navVisible={!isNumpadOpen && !navbarHiddenByScroll}
             />
           )}
           {activeTab === 'history' && (
-            <HistoryScreen onRefreshNeeded={historyRefreshKey} />
+            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} navVisible={!isNumpadOpen && !navbarHiddenByScroll} />
           )}
         </div>
 
