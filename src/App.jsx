@@ -173,6 +173,8 @@ function App() {
               onAddExercise={ex => setExercises([...exercises, ex])}
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
+              onScroll={handleScroll}
+              navVisible={!isNumpadOpen && !navbarHiddenByScroll}
             />
           )}
           {activeTab === 'templates' && (
