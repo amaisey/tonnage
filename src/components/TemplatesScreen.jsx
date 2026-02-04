@@ -233,7 +233,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   );
 };
 
-const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises }) => {
+const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises, onScroll, navVisible = true }) => {
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [showImport, setShowImport] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
@@ -317,7 +317,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className={`flex-1 overflow-y-auto p-4 ${navVisible ? 'pb-24' : 'pb-4'}`} onScroll={e => onScroll && onScroll(e.target.scrollTop)}>
         {/* Subfolders */}
         {childFolders.map(folder => {
           const allSubfolderIds = getAllSubfolderIds(folder.id);

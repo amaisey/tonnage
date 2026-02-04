@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import { useWorkoutHistory, useWorkoutCount } from '../hooks/useWorkoutDb';
 import { workoutDb } from '../db/workoutDb';
 
-const HistoryScreen = ({ onRefreshNeeded, onScroll }) => {
+const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible = true }) => {
   const [showExport, setShowExport] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [stats, setStats] = useState({ totalTime: 0, totalVolume: 0 });
@@ -123,7 +123,7 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll }) => {
         <div
           ref={scrollRef}
           onScroll={handleScrollEvent}
-          className="flex-1 overflow-y-auto p-4 pb-24"
+          className={`flex-1 overflow-y-auto p-4 ${navVisible ? 'pb-24' : 'pb-4'}`}
         >
           {totalCount === 0 && !loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">

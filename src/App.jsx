@@ -137,7 +137,7 @@ function App() {
 
   return (
     <HistoryMigration>
-      <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
+      <div className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'workout' && (
             <WorkoutScreen
@@ -148,6 +148,7 @@ function App() {
               exercises={exercises}
               getPreviousData={getPreviousData}
               onScroll={handleScroll}
+              navVisible={navVisible}
             />
           )}
           {activeTab === 'exercises' && (
@@ -157,6 +158,7 @@ function App() {
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
               onScroll={handleScroll}
+              navVisible={navVisible}
             />
           )}
           {activeTab === 'templates' && (
@@ -174,10 +176,11 @@ function App() {
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
               onScroll={handleScroll}
+              navVisible={navVisible}
             />
           )}
           {activeTab === 'history' && (
-            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} />
+            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} navVisible={navVisible} />
           )}
         </div>
 
