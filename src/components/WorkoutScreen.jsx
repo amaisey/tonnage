@@ -291,7 +291,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             restTime={exerciseRestTime}
             onUpdate={(field, value) => updateSet(exIndex, setIndex, field, value)}
             onComplete={() => toggleSetComplete(exIndex, setIndex)}
-            onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)} />
+            onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)}
+            activeField={numpadState?.exIndex === exIndex && numpadState?.setIndex === setIndex ? numpadState.field : null} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">

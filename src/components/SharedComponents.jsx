@@ -94,11 +94,13 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
 };
 
 // Set Input Row Component with rest time display
-const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad }) => {
+const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, activeField }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const [showBandPicker, setShowBandPicker] = useState(false);
 
   const renderInput = (field, fieldIndex) => {
+    const isActive = activeField === field;
+
     // Special handling for band color field
     if (field === 'bandColor') {
       const currentColor = set.bandColor || 'red';
@@ -107,7 +109,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
         <div key={field} className="flex-1 relative">
           <button
             onClick={() => setShowBandPicker(!showBandPicker)}
-            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-2 rounded-lg text-center text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-600`}
+            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-2 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
           >
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
@@ -134,7 +136,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       <button
         key={field}
         onClick={() => onOpenNumpad(setIndex, field, fieldIndex)}
-        className="flex-1 bg-gray-700 text-white px-2 py-2 rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-rose-600 min-w-0"
+        className={`flex-1 px-2 py-2 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'}`}
       >
         {set[field] || placeholders[field]}
       </button>
