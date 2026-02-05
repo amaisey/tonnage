@@ -28,10 +28,11 @@ function App() {
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
   const lastScrollY = useRef(0);
 
-  // Reset navbar scroll state when there's no active workout (empty state shouldn't hide navbar)
+  // Reset navbar and numpad state when there's no active workout (empty state shouldn't hide navbar)
   useEffect(() => {
     if (!activeWorkout) {
       setNavbarHiddenByScroll(false);
+      setIsNumpadOpen(false); // Reset numpad state when workout ends
       lastScrollY.current = 0;
     }
   }, [activeWorkout]);

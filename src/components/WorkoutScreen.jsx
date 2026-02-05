@@ -300,6 +300,56 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return activeWorkout?.exercises?.some(ex => ex.phase && ex.phase !== 'workout');
   };
 
+  // Calculate the most recent completed set timestamp across ALL exercises
+  const getLastGlobalCompletion = () => {
+    if (!activeWorkout?.exercises) return null;
+    let lastCompletion = null;
+    activeWorkout.exercises.forEach(ex => {
+      ex.sets?.forEach(set => {
+        if (set.completed && set.completedAt) {
+          if (!lastCompletion || set.completedAt > lastCompletion) {
+            lastCompletion = set.completedAt;
+          }
+        }
+      });
+    });
+    return lastCompletion;
+  };
+
+  // Get the completion timestamp that was "current" when a specific set was completed
+  // (i.e., the most recent completion BEFORE this set was completed)
+  const getCompletionBeforeSet = (targetExIndex, targetSetIndex) => {
+    if (!activeWorkout?.exercises) return null;
+    const targetSet = activeWorkout.exercises[targetExIndex]?.sets?.[targetSetIndex];
+    if (!targetSet?.completedAt) return getLastGlobalCompletion(); // For incomplete sets, use current last
+
+    let lastBefore = null;
+    activeWorkout.exercises.forEach((ex, exIdx) => {
+      ex.sets?.forEach((set, setIdx) => {
+        if (set.completed && set.completedAt && set.completedAt < targetSet.completedAt) {
+          if (!lastBefore || set.completedAt > lastBefore) {
+            lastBefore = set.completedAt;
+          }
+        }
+      });
+    });
+    return lastBefore;
+  };
+
+  // Check if this is the first set in the entire workout (no sets before it)
+  const isFirstSetInWorkout = (exIndex, setIndex) => {
+    // Check all sets before this one
+    for (let e = 0; e < activeWorkout.exercises.length; e++) {
+      const maxSet = e === exIndex ? setIndex : activeWorkout.exercises[e].sets.length;
+      for (let s = 0; s < maxSet; s++) {
+        if (e < exIndex || (e === exIndex && s < setIndex)) {
+          return false; // There's at least one set before this one
+        }
+      }
+    }
+    return setIndex === 0 && exIndex === 0;
+  };
+
   if (!activeWorkout) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black" style={{ touchAction: 'none' }}>
@@ -428,7 +478,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             onRemove={exercise.sets.length > 1 ? () => removeSet(exIndex, setIndex) : null}
             onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)}
             onOpenBandPicker={(color) => openBandPicker(exIndex, setIndex, color)}
-            activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null} />
+            activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null}
+            lastGlobalCompletion={set.completed ? getCompletionBeforeSet(exIndex, setIndex) : getLastGlobalCompletion()}
+            isFirstSetInWorkout={isFirstSetInWorkout(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
@@ -494,7 +546,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       <div className="relative z-10 flex flex-col h-full overflow-hidden">
       <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
-        onAddTime={() => setRestTimer(prev => ({ ...prev, time: prev.time + 30, totalTime: prev.totalTime + 30 }))} />
+        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, time: Math.max(0, prev.time + delta), totalTime: Math.max(prev.totalTime, prev.time + delta) }))} />
 
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">

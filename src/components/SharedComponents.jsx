@@ -9,12 +9,12 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
   const [localValue, setLocalValue] = useState(value);
   const valueRef = useRef(value);
 
-  // Sync local value with prop when field changes
+  // Sync local value with prop when FIELD changes (not value - that causes overwrite bug)
   useEffect(() => {
     setLocalValue(value);
     valueRef.current = value;
     setHasEdited(false);
-  }, [fieldLabel, value]);
+  }, [fieldLabel]); // Only reset when switching fields, not on every value change
 
   // Update parent and local state together
   const updateValue = (newValue) => {
@@ -269,10 +269,11 @@ const DurationPad = ({ value, onChange, onClose, onNext, fieldLabel }) => {
   );
 };
 
-// Set Input Row Component with rest time display
-const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField }) => {
+// Set Input Row Component with dual rest time display (elapsed + target)
+const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, lastGlobalCompletion, isFirstSetInWorkout }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const rowRef = useRef(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   // Scroll into view when this row becomes active - position well above numpad
   useEffect(() => {
@@ -293,6 +294,32 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       }, 50);
     }
   }, [activeField]);
+
+  // Live elapsed time counter - counts up from last global completion
+  useEffect(() => {
+    // If this set is completed, freeze the elapsed time at the moment it was completed
+    if (set.completed && set.completedAt && lastGlobalCompletion) {
+      const frozenElapsed = Math.round((set.completedAt - lastGlobalCompletion) / 1000);
+      setElapsedTime(Math.max(0, frozenElapsed));
+      return;
+    }
+
+    // If no previous completion exists, don't show timer
+    if (!lastGlobalCompletion) {
+      setElapsedTime(0);
+      return;
+    }
+
+    // Live countdown - update every second
+    const updateElapsed = () => {
+      const elapsed = Math.round((Date.now() - lastGlobalCompletion) / 1000);
+      setElapsedTime(elapsed);
+    };
+
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [lastGlobalCompletion, set.completed, set.completedAt]);
 
   const renderInput = (field, fieldIndex) => {
     const isActive = activeField === field;
@@ -361,14 +388,23 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
 
   const actualRest = getRestFromPrevious();
 
+  // Determine if we should show the rest timer row
+  const showRestRow = !isFirstSetInWorkout && lastGlobalCompletion;
+
   return (
     <>
-      {/* Rest time indicator between sets */}
-      {setIndex > 0 && previousSet?.completed && (
-        <div className="flex items-center justify-center py-1">
+      {/* Dual rest time indicator - Elapsed (left) | Target (right) */}
+      {showRestRow && (
+        <div className="flex items-center justify-center py-1 gap-2">
           <div className="flex-1 h-px bg-rose-700/30"></div>
-          <span className="text-xs text-rose-400 font-medium px-2">
-            {actualRest ? formatDuration(actualRest) : formatDuration(restTime || 90)}
+          {/* Left: Elapsed time (actual rest taken or live counter) */}
+          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${set.completed ? 'text-white' : 'text-cyan-400'}`}>
+            {formatDuration(elapsedTime)}
+          </span>
+          <span className="text-gray-600 text-xs">|</span>
+          {/* Right: Target rest time */}
+          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${restTime > 0 ? 'text-rose-400' : 'text-gray-600'}`}>
+            {restTime > 0 ? formatDuration(restTime) : '-'}
           </span>
           <div className="flex-1 h-px bg-rose-700/30"></div>
         </div>
@@ -697,7 +733,8 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={onAddTime} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">+30s</button>
+            <button onClick={() => onAddTime(-10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">-10s</button>
+            <button onClick={() => onAddTime(10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">+10s</button>
             <button onClick={onSkip} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">Skip</button>
           </div>
         </div>
