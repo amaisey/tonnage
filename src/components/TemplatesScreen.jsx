@@ -41,12 +41,17 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
       <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
         <h3 className="text-lg font-semibold text-white">{template.name}</h3>
-        <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300">
-          <Icons.Edit />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300 p-2">
+            <Icons.Edit />
+          </button>
+          <button onClick={() => { onStart(template); onClose(); }} className="bg-rose-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-rose-700 text-sm">
+            Start
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
+      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-gray-900 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-cyan-400">{template.exercises.length}</div>
@@ -121,12 +126,6 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
             </div>
           );
         })}
-      </div>
-
-      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
-        <button onClick={() => { onStart(template); onClose(); }} className="w-full bg-rose-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-rose-700">
-          Start Workout
-        </button>
       </div>
     </div>
   );
@@ -494,7 +493,9 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   };
 
   const currentFolder = folders.find(f => f.id === currentFolderId);
-  const childFolders = folders.filter(f => f.parentId === currentFolderId);
+  // Filter out unwanted folders - artifacts from import or unused defaults
+  const hiddenFolders = ['root', 'cardio', 'strength'];
+  const childFolders = folders.filter(f => f.parentId === currentFolderId && f.name && !hiddenFolders.includes(f.name.toLowerCase()));
   const folderTemplates = templates.filter(t => (t.folderId || 'root') === currentFolderId);
 
   const getBreadcrumbs = () => {

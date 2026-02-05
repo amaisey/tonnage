@@ -115,7 +115,17 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
               {!isCollapsed && (
                 <div className={`border-l-4 ${phaseInfo.borderColor} pl-3 space-y-3`}>
                   {phaseExercises.map(({ exercise, index }) => {
-                    const completedSets = exercise.sets.filter(s => s.completed);
+                    // Filter out rest-period sets (duration-only with no reps/weight)
+                    const isRestPeriod = (set) => {
+                      const hasReps = set.reps && set.reps > 0;
+                      const hasWeight = set.weight && set.weight > 0;
+                      const hasDistance = set.distance && set.distance > 0;
+                      const isDurationExercise = exercise.category === 'duration' || exercise.category === 'cardio';
+                      if (isDurationExercise && set.duration) return false;
+                      return !hasReps && !hasWeight && !hasDistance;
+                    };
+                    const realSets = exercise.sets.filter(s => !isRestPeriod(s));
+                    const completedSets = realSets.filter(s => s.completed);
                     const exVolume = completedSets.reduce((acc, s) => acc + (s.weight || 0) * (s.reps || 0), 0);
 
                     return (
@@ -130,12 +140,27 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
                           )}
                         </div>
                         <div className="text-xs text-gray-400 mb-3">
-                          {exercise.bodyPart} • {completedSets.length}/{exercise.sets.length} sets completed
+                          {exercise.bodyPart} • {completedSets.length}/{realSets.length} sets completed
                         </div>
 
-                        {/* Set details */}
+                        {/* Set details - filter out rest periods (sets with only duration, no reps/weight) */}
                         <div className="space-y-1">
-                          {exercise.sets.map((set, sIdx) => {
+                          {exercise.sets
+                            .filter(set => {
+                              // Keep sets that have actual workout data (reps, weight, distance)
+                              // Filter out rest-period sets (duration-only with no reps/weight)
+                              const hasReps = set.reps && set.reps > 0;
+                              const hasWeight = set.weight && set.weight > 0;
+                              const hasDistance = set.distance && set.distance > 0;
+                              const isDurationExercise = exercise.category === 'duration' || exercise.category === 'cardio';
+
+                              // If it's a duration/cardio exercise, keep sets with duration
+                              if (isDurationExercise && set.duration) return true;
+
+                              // For other exercises, keep sets that have reps, weight, or distance
+                              return hasReps || hasWeight || hasDistance;
+                            })
+                            .map((set, sIdx) => {
                             const fields = CATEGORIES[exercise.category]?.fields || ['weight', 'reps'];
                             return (
                               <div key={sIdx} className={`flex items-center gap-3 p-2 rounded-lg ${set.completed ? 'bg-gray-800' : 'bg-gray-800/30'}`}>
@@ -143,10 +168,10 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
                                   {set.completed ? '✓' : sIdx + 1}
                                 </span>
                                 <div className="flex-1 flex items-center gap-2 text-sm">
-                                  {fields.includes('weight') && set.weight && (
+                                  {fields.includes('weight') && set.weight !== undefined && set.weight !== null && (
                                     <span className={set.completed ? 'text-white' : 'text-gray-500'}>{set.weight} lbs</span>
                                   )}
-                                  {fields.includes('reps') && set.reps && (
+                                  {fields.includes('reps') && set.reps > 0 && (
                                     <span className={set.completed ? 'text-white' : 'text-gray-500'}>× {set.reps}</span>
                                   )}
                                   {fields.includes('duration') && set.duration && (
@@ -219,14 +244,60 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible }) => {
   const [loading, setLoading] = useState(true);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
 
-  // Load history from IndexedDB
+  // Load history from IndexedDB, auto-import if empty
   useEffect(() => {
     const loadHistory = async () => {
       setLoading(true);
       try {
         const workouts = await workoutDb.getAll();
-        workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
-        setHistory(workouts);
+
+        // Auto-import if database is empty
+        if (workouts.length === 0) {
+          console.log('No workouts found, auto-importing history...');
+          setShowImport(true);
+          setImportStatus({ message: 'First load - importing workout history...', progress: 0 });
+          setImporting(true);
+
+          try {
+            const { importedHistoryWithPhases } = await import('../data/importedHistoryWithPhases');
+            const total = importedHistoryWithPhases.length;
+            let imported = 0;
+
+            for (let i = 0; i < total; i++) {
+              try {
+                await workoutDb.add(importedHistoryWithPhases[i]);
+                imported++;
+              } catch (err) {
+                // Skip duplicates or errors
+              }
+              if (i % 100 === 0) {
+                setImportStatus({ message: `Importing... ${imported}/${total}`, progress: (i / total) * 100 });
+              }
+            }
+
+            setImportStatus({ message: `Imported ${imported} workouts!`, progress: 100, done: true });
+
+            // Reload after import
+            const importedWorkouts = await workoutDb.getAll();
+            importedWorkouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+            setHistory(importedWorkouts);
+
+            // Auto-dismiss after 2 seconds
+            setTimeout(() => {
+              setImportStatus(null);
+              setShowImport(false);
+            }, 2000);
+
+          } catch (importErr) {
+            console.error('Auto-import failed:', importErr);
+            setImportStatus(null);
+            setShowImport(false);
+          }
+          setImporting(false);
+        } else {
+          workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+          setHistory(workouts);
+        }
       } catch (err) {
         console.error('Error loading history:', err);
       }
