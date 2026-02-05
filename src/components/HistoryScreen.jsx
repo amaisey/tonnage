@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, BAND_COLORS, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, exportWorkoutJSON } from '../utils/helpers';
@@ -210,10 +210,16 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
         })}
       </div>
 
-      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
+      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
         <button onClick={async () => {
           await navigator.clipboard.writeText(exportWorkoutJSON(workout));
-        }} className="w-full bg-gray-800 text-white py-3 rounded-xl font-medium hover:bg-gray-700 flex items-center justify-center gap-2">
+          // Visual feedback
+          const btn = document.activeElement;
+          btn.textContent = '✓ Copied!';
+          setTimeout(() => {
+            btn.innerHTML = '<span class="flex items-center justify-center gap-2">Export Copy Workout JSON</span>';
+          }, 1500);
+        }} className="w-full bg-teal-600 text-white py-3 rounded-xl font-medium hover:bg-teal-700 flex items-center justify-center gap-2">
           <Icons.Export /> Copy Workout JSON
         </button>
       </div>
@@ -235,7 +241,7 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
   );
 };
 
-const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible }) => {
+const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChange }) => {
   const [history, setHistory] = useState([]);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -243,6 +249,11 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible }) => {
   const [importStatus, setImportStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+
+  // Notify parent when modal opens/closes to hide navbar
+  useEffect(() => {
+    onModalStateChange?.(!!selectedWorkout);
+  }, [selectedWorkout, onModalStateChange]);
 
   // Load history from IndexedDB, auto-import if empty
   useEffect(() => {

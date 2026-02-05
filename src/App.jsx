@@ -24,6 +24,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isNumpadOpen, setIsNumpadOpen] = useState(false);
   const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const lastScrollY = useRef(0);
 
   // Reset navbar scroll state when there's no active workout (empty state shouldn't hide navbar)
@@ -152,6 +153,9 @@ function App() {
     { id: 'settings', icon: Icons.Settings, label: 'Settings' },
   ];
 
+  // Hide navbar when numpad is open, scrolling down, or history modal is open
+  const shouldHideNavbar = isNumpadOpen || navbarHiddenByScroll || isHistoryModalOpen;
+
   return (
     <HistoryMigration>
       <div className="w-full h-[100dvh] bg-black flex flex-col overflow-hidden" style={{ overscrollBehavior: 'none' }}>
@@ -175,7 +179,7 @@ function App() {
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
               onScroll={handleScroll}
-              navVisible={!isNumpadOpen && !navbarHiddenByScroll}
+              navVisible={!shouldHideNavbar}
             />
           )}
           {activeTab === 'templates' && (
@@ -193,15 +197,20 @@ function App() {
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
               onScroll={handleScroll}
-              navVisible={!isNumpadOpen && !navbarHiddenByScroll}
+              navVisible={!shouldHideNavbar}
             />
           )}
           {activeTab === 'history' && (
-            <HistoryScreen onRefreshNeeded={historyRefreshKey} onScroll={handleScroll} navVisible={!isNumpadOpen && !navbarHiddenByScroll} />
+            <HistoryScreen
+              onRefreshNeeded={historyRefreshKey}
+              onScroll={handleScroll}
+              navVisible={!shouldHideNavbar}
+              onModalStateChange={setIsHistoryModalOpen}
+            />
           )}
         </div>
 
-        {!isNumpadOpen && !navbarHiddenByScroll && (
+        {!shouldHideNavbar && (
           <div className="fixed left-1/2 -translate-x-1/2 z-40 transition-all duration-300" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
             <div className="flex items-center gap-0.5 px-2 py-1.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full shadow-lg shadow-black/20">
               {tabs.map(tab => {

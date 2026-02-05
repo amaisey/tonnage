@@ -98,29 +98,95 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
               {!isCollapsed && (
                 <div className={`border-l-4 ${phaseInfo.borderColor} pl-3 space-y-2`}>
-                  {phaseExercises.map(({ exercise, index }) => (
-                    <div key={index} className="bg-gray-900 rounded-xl p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-white">{exercise.name}</span>
-                        {exercise.supersetId && <span className="text-teal-400 text-xs">⚡ Superset</span>}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
-                      </div>
-                      {exercise.notes && <div className="text-xs text-amber-400 mt-1">📝 {exercise.notes}</div>}
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {exercise.sets?.map((set, sIdx) => (
-                          <div key={sIdx} className="bg-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
-                            {set.weight && `${set.weight}lb `}
-                            {set.reps && `×${set.reps}`}
-                            {set.duration && formatDuration(set.duration)}
-                            {set.distance && `${set.distance}mi`}
-                            {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded`}>{set.bandColor}</span>}
+                  {(() => {
+                    // Group exercises by superset
+                    const groups = [];
+                    const usedIndices = new Set();
+
+                    phaseExercises.forEach(({ exercise, index }) => {
+                      if (usedIndices.has(index)) return;
+
+                      if (exercise.supersetId) {
+                        const supersetExercises = phaseExercises.filter(
+                          pe => pe.exercise.supersetId === exercise.supersetId
+                        );
+                        supersetExercises.forEach(se => usedIndices.add(se.index));
+                        groups.push({ type: 'superset', supersetId: exercise.supersetId, exercises: supersetExercises });
+                      } else {
+                        groups.push({ type: 'single', exercise, index });
+                        usedIndices.add(index);
+                      }
+                    });
+
+                    return groups.map((group, gIdx) => {
+                      if (group.type === 'superset') {
+                        return (
+                          <div key={group.supersetId} className="relative">
+                            {/* Superset header */}
+                            <div className="flex items-center gap-2 mb-2 px-2">
+                              <div className="flex items-center gap-1.5 bg-teal-500/20 border border-teal-500/40 rounded-full px-3 py-1">
+                                <span className="text-teal-400 text-sm">⚡</span>
+                                <span className="text-xs font-semibold text-teal-400 uppercase tracking-wide">Superset</span>
+                                <span className="text-xs text-teal-400/70">({group.exercises.length} exercises)</span>
+                              </div>
+                            </div>
+                            {/* Superset container with visual grouping */}
+                            <div className="bg-teal-500/5 border-2 border-teal-500/30 rounded-xl overflow-hidden">
+                              {group.exercises.map(({ exercise, index }, exIdx) => (
+                                <div key={index} className={`p-3 ${exIdx !== group.exercises.length - 1 ? 'border-b border-teal-500/20' : ''}`}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-teal-500/30 flex items-center justify-center text-teal-400 text-xs font-bold">{exIdx + 1}</div>
+                                      <span className="font-medium text-white">{exercise.name}</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-1 ml-8">
+                                    {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
+                                  </div>
+                                  {exercise.notes && <div className="text-xs text-amber-400 mt-1 ml-8">📝 {exercise.notes}</div>}
+                                  <div className="flex flex-wrap gap-2 mt-2 ml-8">
+                                    {exercise.sets?.map((set, sIdx) => (
+                                      <div key={sIdx} className="bg-gray-800/80 rounded-lg px-2 py-1 text-xs text-gray-300">
+                                        {set.weight && `${set.weight}lb `}
+                                        {set.reps && `×${set.reps}`}
+                                        {set.duration && formatDuration(set.duration)}
+                                        {set.distance && `${set.distance}mi`}
+                                        {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded`}>{set.bandColor}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                        );
+                      }
+
+                      // Single exercise
+                      return (
+                        <div key={group.index} className="bg-gray-900 rounded-xl p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-white">{group.exercise.name}</span>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {group.exercise.bodyPart} • {group.exercise.sets?.length || 3} sets • Rest {formatDuration(group.exercise.restTime || 90)}
+                          </div>
+                          {group.exercise.notes && <div className="text-xs text-amber-400 mt-1">📝 {group.exercise.notes}</div>}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {group.exercise.sets?.map((set, sIdx) => (
+                              <div key={sIdx} className="bg-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
+                                {set.weight && `${set.weight}lb `}
+                                {set.reps && `×${set.reps}`}
+                                {set.duration && formatDuration(set.duration)}
+                                {set.distance && `${set.distance}mi`}
+                                {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded`}>{set.bandColor}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>
