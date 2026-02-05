@@ -661,11 +661,42 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
               <h3 className="text-lg font-semibold text-white">Export History</h3>
               <button onClick={() => setShowExport(false)} className="text-white/60 hover:text-white"><Icons.X /></button>
             </div>
+            <div className="text-sm text-teal-400 mb-3">{history.length} workouts will be exported</div>
             <pre className="bg-black/50 rounded-lg p-3 text-xs text-white/70 overflow-auto max-h-64 mb-4 border border-white/10">
-              {JSON.stringify({ workouts: history.slice(0, 5).map(w => JSON.parse(exportWorkoutJSON(w))) }, null, 2).slice(0, 1000)}...
+              {(() => {
+                try {
+                  const preview = history.slice(0, 3).map(w => {
+                    try { return JSON.parse(exportWorkoutJSON(w)); }
+                    catch (e) { return { name: w.name, error: e.message }; }
+                  });
+                  return JSON.stringify({ workouts: preview, total: history.length }, null, 2).slice(0, 1000) + '...';
+                } catch (e) { return `Preview error: ${e.message}`; }
+              })()}
             </pre>
-            <button onClick={async () => { await navigator.clipboard.writeText(JSON.stringify({ workouts: history.map(w => JSON.parse(exportWorkoutJSON(w))) }, null, 2)); }}
-              className="w-full bg-white/20 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/30 border border-white/30">Copy to Clipboard</button>
+            <button
+              id="export-btn"
+              onClick={async (e) => {
+                const btn = e.currentTarget;
+                try {
+                  const exportData = history.map(w => {
+                    try { return JSON.parse(exportWorkoutJSON(w)); }
+                    catch (err) { return { name: w.name || 'Unknown', error: err.message }; }
+                  });
+                  await navigator.clipboard.writeText(JSON.stringify({ workouts: exportData }, null, 2));
+                  btn.textContent = `✓ Copied ${exportData.length} workouts!`;
+                  btn.classList.add('bg-teal-600');
+                  setTimeout(() => {
+                    btn.textContent = 'Copy to Clipboard';
+                    btn.classList.remove('bg-teal-600');
+                  }, 2000);
+                } catch (err) {
+                  btn.textContent = `Error: ${err.message}`;
+                  setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 2000);
+                }
+              }}
+              className="w-full bg-white/20 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/30 border border-white/30">
+              Copy to Clipboard
+            </button>
           </div>
         </div>
       )}
