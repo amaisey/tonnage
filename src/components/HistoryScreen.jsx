@@ -177,6 +177,9 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
                                   {fields.includes('duration') && set.duration && (
                                     <span className={set.completed ? 'text-white' : 'text-gray-500'}>{formatDuration(set.duration)}</span>
                                   )}
+                                  {fields.includes('duration') && set.duration && fields.includes('distance') && set.distance && (
+                                    <span className={set.completed ? 'text-white/60' : 'text-gray-600'}> × </span>
+                                  )}
                                   {fields.includes('distance') && set.distance && (
                                     <span className={set.completed ? 'text-white' : 'text-gray-500'}>{set.distance} mi</span>
                                   )}
@@ -249,6 +252,8 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
   const [importStatus, setImportStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [importFormat, setImportFormat] = useState('json'); // 'json' or 'csv'
+  const [importFile, setImportFile] = useState(null);
 
   // Notify parent when modal opens/closes to hide navbar
   useEffect(() => {
@@ -364,6 +369,125 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
       const workouts = await workoutDb.getAll();
       workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
       setHistory(workouts);
+
+    } catch (err) {
+      console.error('Import error:', err);
+      setImportStatus({ message: `Error: ${err.message}`, error: true });
+    }
+
+    setImporting(false);
+  };
+
+  // Parse CSV from Strong app format
+  const parseStrongCSV = (csvText) => {
+    const lines = csvText.split('\n');
+    const headers = lines[0].split(';').map(h => h.trim().replace(/"/g, ''));
+    const workouts = {};
+
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = lines[i].split(';').map(v => v.trim().replace(/"/g, ''));
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = values[idx]; });
+
+      // Group by date + workout name
+      const dateStr = row['Date'];
+      const workoutName = row['Workout Name'];
+      const key = `${dateStr}-${workoutName}`;
+
+      if (!workouts[key]) {
+        workouts[key] = {
+          id: `imported-${Date.now()}-${i}`,
+          name: workoutName,
+          date: new Date(dateStr).getTime(),
+          duration: parseFloat(row['Workout Duration'] || row['Duration (sec)'] || 0) * 1000,
+          exercises: []
+        };
+      }
+
+      // Find or create exercise
+      const exName = row['Exercise Name'];
+      let exercise = workouts[key].exercises.find(e => e.name === exName);
+      if (!exercise) {
+        exercise = {
+          name: exName,
+          bodyPart: row['Body Part'] || 'Other',
+          category: row['Weight'] ? 'weighted' : (row['Duration (sec)'] ? 'duration' : 'reps_only'),
+          phase: 'workout',
+          sets: []
+        };
+        workouts[key].exercises.push(exercise);
+      }
+
+      // Add set
+      const set = { completed: true };
+      if (row['Weight']) set.weight = parseFloat(row['Weight']);
+      if (row['Reps']) set.reps = parseInt(row['Reps']);
+      if (row['Duration (sec)']) set.duration = parseInt(row['Duration (sec)']);
+      if (row['Distance']) set.distance = parseFloat(row['Distance']);
+      exercise.sets.push(set);
+    }
+
+    return Object.values(workouts);
+  };
+
+  // Import from file (JSON or CSV)
+  const importFromFile = async (replace = false) => {
+    if (!importFile) return;
+
+    setImporting(true);
+    setImportStatus({ message: 'Reading file...', progress: 0 });
+
+    try {
+      const text = await importFile.text();
+      let workoutsToImport = [];
+
+      if (importFormat === 'json') {
+        const data = JSON.parse(text);
+        workoutsToImport = Array.isArray(data) ? data : (data.workouts || []);
+        // Ensure each workout has an id and proper date
+        workoutsToImport = workoutsToImport.map((w, i) => ({
+          ...w,
+          id: w.id || `imported-${Date.now()}-${i}`,
+          date: w.date ? (typeof w.date === 'string' ? new Date(w.date).getTime() : w.date) : Date.now()
+        }));
+      } else {
+        workoutsToImport = parseStrongCSV(text);
+      }
+
+      if (replace) {
+        setImportStatus({ message: 'Clearing existing history...', progress: 10 });
+        const existing = await workoutDb.getAll();
+        for (const w of existing) {
+          await workoutDb.delete(w.id);
+        }
+      }
+
+      setImportStatus({ message: 'Importing workouts...', progress: 30 });
+
+      let imported = 0;
+      const total = workoutsToImport.length;
+
+      for (let i = 0; i < total; i++) {
+        try {
+          await workoutDb.add(workoutsToImport[i]);
+          imported++;
+        } catch (err) {
+          console.warn(`Skipped workout ${i}:`, err.message);
+        }
+
+        if (i % 50 === 0 || i === total - 1) {
+          setImportStatus({ message: `Importing... ${imported}/${total}`, progress: 30 + (i / total) * 65 });
+        }
+      }
+
+      setImportStatus({ message: `Successfully imported ${imported} workouts!`, progress: 100, done: true });
+
+      // Reload history
+      const workouts = await workoutDb.getAll();
+      workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+      setHistory(workouts);
+      setImportFile(null);
 
     } catch (err) {
       console.error('Import error:', err);
@@ -555,32 +679,74 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
           <div className="bg-gray-900/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">Import Workout History</h3>
-              {!importing && <button onClick={() => { setShowImport(false); setImportStatus(null); }} className="text-white/60 hover:text-white"><Icons.X /></button>}
+              {!importing && <button onClick={() => { setShowImport(false); setImportStatus(null); setImportFile(null); }} className="text-white/60 hover:text-white"><Icons.X /></button>}
             </div>
 
             {!importStatus ? (
               <>
-                <p className="text-white/60 text-sm mb-6">
-                  Import your workout history from Strong app. This includes {1453} workouts with exercise phases automatically inferred (warmup, workout, cooldown).
+                {/* Format Picker */}
+                <div className="mb-4">
+                  <label className="text-sm text-gray-400 mb-2 block">Format</label>
+                  <div className="flex rounded-xl overflow-hidden border border-white/20">
+                    <button
+                      onClick={() => setImportFormat('json')}
+                      className={`flex-1 py-3 text-sm font-medium transition-colors ${importFormat === 'json' ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                    >
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => setImportFormat('csv')}
+                      className={`flex-1 py-3 text-sm font-medium transition-colors ${importFormat === 'csv' ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                    >
+                      CSV (Strong)
+                    </button>
+                  </div>
+                </div>
+
+                {/* File Upload */}
+                <div className="mb-4">
+                  <label className="text-sm text-gray-400 mb-2 block">Select File</label>
+                  <label className={`flex items-center justify-center gap-2 w-full py-4 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${importFile ? 'border-teal-500 bg-teal-500/10' : 'border-white/20 hover:border-white/40 bg-gray-800/50'}`}>
+                    <input
+                      type="file"
+                      accept={importFormat === 'json' ? '.json' : '.csv'}
+                      onChange={(e) => setImportFile(e.target.files[0])}
+                      className="hidden"
+                    />
+                    {importFile ? (
+                      <span className="text-teal-400 font-medium">{importFile.name}</span>
+                    ) : (
+                      <>
+                        <Icons.Import />
+                        <span className="text-gray-400">Choose {importFormat.toUpperCase()} file</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                <p className="text-white/50 text-xs mb-4">
+                  {importFormat === 'json'
+                    ? 'Import JSON exported from this app or compatible format.'
+                    : 'Import CSV exported from Strong app (semicolon-separated).'}
                 </p>
 
                 <div className="space-y-3">
                   <button
-                    onClick={() => importStrongHistory(false)}
-                    disabled={importing}
+                    onClick={() => importFromFile(false)}
+                    disabled={importing || !importFile}
                     className="w-full bg-teal-600 text-white py-3 rounded-xl font-medium hover:bg-teal-700 disabled:opacity-50"
                   >
                     Add to Existing History
                   </button>
                   <button
-                    onClick={() => importStrongHistory(true)}
-                    disabled={importing}
+                    onClick={() => importFromFile(true)}
+                    disabled={importing || !importFile}
                     className="w-full bg-rose-600 text-white py-3 rounded-xl font-medium hover:bg-rose-700 disabled:opacity-50"
                   >
                     Replace All History
                   </button>
                   <button
-                    onClick={() => setShowImport(false)}
+                    onClick={() => { setShowImport(false); setImportFile(null); }}
                     disabled={importing}
                     className="w-full bg-gray-700 text-white py-3 rounded-xl font-medium hover:bg-gray-600 disabled:opacity-50"
                   >

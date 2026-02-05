@@ -42,7 +42,7 @@ export const generateStravaDescription = (workout) => {
 export const exportWorkoutJSON = (workout) => {
   return JSON.stringify({
     name: workout.name,
-    date: new Date(workout.date).toISOString(),
+    date: new Date(workout.date || workout.startTime).toISOString(),
     duration: workout.duration,
     exercises: workout.exercises.map(ex => ({
       name: ex.name,
