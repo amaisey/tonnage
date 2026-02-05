@@ -38,20 +38,27 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
-        <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
-        <h3 className="text-lg font-semibold text-white">{template.name}</h3>
-        <div className="flex items-center gap-2">
-          <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300 p-2">
-            <Icons.Edit />
-          </button>
-          <button onClick={() => { onStart(template); onClose(); }} className="bg-rose-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-rose-700 text-sm">
-            Start
-          </button>
-        </div>
+      {/* Background Image */}
+      <div className="fixed inset-0 z-0">
+        <img src="/backgrounds/bg-3.jpg" alt="" className="w-full h-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/70 to-black/90"></div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
+      <div className="relative z-10 flex flex-col h-full">
+        <div className="shrink-0 p-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
+          <h3 className="text-lg font-semibold text-white">{template.name}</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300 p-2">
+              <Icons.Edit />
+            </button>
+            <button onClick={() => { onStart(template); onClose(); }} className="bg-rose-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-rose-700 text-sm">
+              Start
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-gray-900 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-cyan-400">{template.exercises.length}</div>
@@ -192,6 +199,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -448,17 +456,24 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <div className="shrink-0 p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
-        <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
-        <h3 className="text-lg font-semibold text-white">Edit Template</h3>
-        <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
-          Save
-        </button>
+      {/* Background Image */}
+      <div className="fixed inset-0 z-0">
+        <img src="/backgrounds/bg-6.jpg" alt="" className="w-full h-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/70 to-black/90"></div>
       </div>
 
-      {selectMode && (
-        <div className="shrink-0 p-3 bg-teal-900/50 border-b border-teal-700 flex items-center justify-between">
-          <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
+      <div className="relative z-10 flex flex-col h-full">
+        <div className="shrink-0 p-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
+          <h3 className="text-lg font-semibold text-white">Edit Template</h3>
+          <button onClick={() => { onSave({ ...template, name, notes, estimatedTime: estimatedTime ? parseInt(estimatedTime) : undefined, exercises }); onClose(); }} className="text-rose-400 hover:text-rose-300 font-medium">
+            Save
+          </button>
+        </div>
+
+        {selectMode && (
+          <div className="shrink-0 p-3 bg-teal-900/50 border-b border-teal-700 flex items-center justify-between">
+            <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
           <div className="flex gap-2">
             <button onClick={() => { setSelectMode(false); setSelectedForSuperset([]); }} className="text-gray-400 text-sm">Cancel</button>
             <button onClick={createSuperset} disabled={selectedForSuperset.length < 2} className="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm font-medium disabled:opacity-50">
@@ -468,9 +483,9 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Template name"
-          className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3" />
+        <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain' }}>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Template name"
+            className="w-full bg-white/10 backdrop-blur-sm text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-3 border border-white/20" />
 
         <div className="flex gap-2 mb-3">
           <input type="number" value={estimatedTime} onChange={e => setEstimatedTime(e.target.value)} placeholder="Est. minutes"
@@ -504,15 +519,16 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         })}
 
         <button onClick={() => setShowExercisePicker(true)}
-          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-rose-700 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
+          className="w-full bg-white/10 backdrop-blur-sm border-2 border-dashed border-white/20 rounded-2xl p-6 text-gray-400 hover:border-rose-500/50 hover:text-rose-400 flex items-center justify-center gap-2 mt-2">
           <Icons.Plus /> Add Exercise
         </button>
-      </div>
+        </div>
 
-      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
-        <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-gray-800 text-red-400 py-3 rounded-xl font-medium hover:bg-gray-700">
-          Delete Template
-        </button>
+        <div className="shrink-0 p-4 border-t border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
+          <button onClick={() => { onDelete(template.id); onClose(); }} className="w-full bg-red-500/20 text-red-400 py-3 rounded-xl font-medium hover:bg-red-500/30 border border-red-500/30">
+            Delete Template
+          </button>
+        </div>
       </div>
 
       {showExercisePicker && (

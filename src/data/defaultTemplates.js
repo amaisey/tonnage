@@ -15,11 +15,10 @@ export const defaultFolders = [
   { id: 'hybrid-3.0-week-10', name: 'Week 10', parentId: 'hybrid-3.0' },
   { id: 'hybrid-3.0-week-11', name: 'Week 11', parentId: 'hybrid-3.0' },
   { id: 'hybrid-3.0-week-12', name: 'Week 12', parentId: 'hybrid-3.0' },
-  // Correcting Course
+  // Correcting Course - weeks directly under main folder (same as Hybrid Athlete)
   { id: 'correcting-course', name: 'Correcting Course', parentId: 'root' },
-  { id: 'cc-phase1', name: 'Phase 1', parentId: 'correcting-course' },
-  { id: 'cc-p1-w1', name: 'Week 1', parentId: 'cc-phase1' },
-  { id: 'cc-p1-w2', name: 'Week 2', parentId: 'cc-phase1' },
+  { id: 'cc-p1-w1', name: 'P1 - Week 1', parentId: 'correcting-course' },
+  { id: 'cc-p1-w2', name: 'P1 - Week 2', parentId: 'correcting-course' },
 ];
 
 // Helper to convert meters to display
