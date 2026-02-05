@@ -17,7 +17,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
   const getExercisesByPhase = () => {
     const phases = { warmup: [], workout: [], cooldown: [] };
     template.exercises.forEach((ex, idx) => {
-      const phase = ex.phase || 'workout'; // default to workout
+      const phase = ex.phase || 'workout';
       phases[phase].push({ exercise: ex, index: idx });
     });
     return phases;
@@ -25,10 +25,9 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
   const exercisesByPhase = getExercisesByPhase();
 
-  // Calculate estimated time per phase
   const getPhaseTime = (exercises) => {
     return exercises.reduce((total, { exercise }) => {
-      const setTime = (exercise.sets?.length || 3) * 45; // ~45 sec per set
+      const setTime = (exercise.sets?.length || 3) * 45;
       const restTime = (exercise.sets?.length || 3) * (exercise.restTime || 90);
       return total + setTime + restTime;
     }, 0);
@@ -48,7 +47,6 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
-        {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-gray-900 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-cyan-400">{template.exercises.length}</div>
@@ -72,7 +70,6 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
           </div>
         )}
 
-        {/* Exercises by Phase */}
         {Object.entries(EXERCISE_PHASES).map(([phaseKey, phaseInfo]) => {
           const phaseExercises = exercisesByPhase[phaseKey];
           if (phaseExercises.length === 0) return null;
@@ -82,10 +79,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
           return (
             <div key={phaseKey} className="mb-4">
-              <button
-                onClick={() => togglePhase(phaseKey)}
-                className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}
-              >
+              <button onClick={() => togglePhase(phaseKey)} className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}>
                 <div className="flex items-center gap-2">
                   <span>{phaseInfo.icon}</span>
                   <span className="font-semibold text-white">{phaseInfo.label}</span>
@@ -102,18 +96,13 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
                   {phaseExercises.map(({ exercise, index }) => (
                     <div key={index} className="bg-gray-900 rounded-xl p-3">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-medium text-white">{exercise.name}</span>
-                          {exercise.supersetId && <span className="ml-2 text-teal-400 text-xs">⚡ Superset</span>}
-                        </div>
+                        <span className="font-medium text-white">{exercise.name}</span>
+                        {exercise.supersetId && <span className="text-teal-400 text-xs">⚡ Superset</span>}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
                         {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
                       </div>
-                      {exercise.notes && (
-                        <div className="text-xs text-amber-400 mt-1">📝 {exercise.notes}</div>
-                      )}
-                      {/* Show set details */}
+                      {exercise.notes && <div className="text-xs text-amber-400 mt-1">📝 {exercise.notes}</div>}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {exercise.sets?.map((set, sIdx) => (
                           <div key={sIdx} className="bg-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
@@ -121,7 +110,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
                             {set.reps && `×${set.reps}`}
                             {set.duration && formatDuration(set.duration)}
                             {set.distance && `${set.distance}mi`}
-                            {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded text-xs`}>{set.bandColor}</span>}
+                            {set.bandColor && <span className={`ml-1 ${BAND_COLORS[set.bandColor]?.bg} px-1 rounded`}>{set.bandColor}</span>}
                           </div>
                         ))}
                       </div>
@@ -135,10 +124,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
       </div>
 
       <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
-        <button
-          onClick={() => { onStart(template); onClose(); }}
-          className="w-full bg-rose-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-rose-700"
-        >
+        <button onClick={() => { onStart(template); onClose(); }} className="w-full bg-rose-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-rose-700">
           Start Workout
         </button>
       </div>
@@ -146,7 +132,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
   );
 };
 
-// Edit Template Modal (simplified)
+// Edit Template Modal - FULL EDITING CAPABILITIES
 const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }) => {
   const [name, setName] = useState(template.name);
   const [notes, setNotes] = useState(template.notes || '');
@@ -155,6 +141,9 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [selectedForSuperset, setSelectedForSuperset] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
+  const [expandedExercise, setExpandedExercise] = useState(null); // index of expanded exercise
+
+  const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
   const getGroupedExercises = () => {
     const groups = [];
@@ -162,9 +151,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
     exercises.forEach((ex, idx) => {
       if (used.has(idx)) return;
       if (ex.supersetId) {
-        const supersetExercises = exercises
-          .map((e, i) => ({ exercise: e, index: i }))
-          .filter(({ exercise }) => exercise.supersetId === ex.supersetId);
+        const supersetExercises = exercises.map((e, i) => ({ exercise: e, index: i })).filter(({ exercise }) => exercise.supersetId === ex.supersetId);
         supersetExercises.forEach(({ index }) => used.add(index));
         groups.push({ type: 'superset', supersetId: ex.supersetId, exercises: supersetExercises });
       } else {
@@ -179,16 +166,13 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
     if (asSuperset && newExercises.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
       const toAdd = newExercises.map(ex => ({
-        ...ex,
-        supersetId,
-        restTime: ex.restTime || 90,
+        ...ex, supersetId, restTime: ex.restTime || 90,
         sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
       }));
       setExercises([...exercises, ...toAdd]);
     } else {
       const toAdd = newExercises.map(ex => ({
-        ...ex,
-        restTime: ex.restTime || 90,
+        ...ex, restTime: ex.restTime || 90,
         sets: ex.sets || [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)]
       }));
       setExercises([...exercises, ...toAdd]);
@@ -199,6 +183,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   const removeExercise = (index) => {
     setExercises(exercises.filter((_, i) => i !== index));
     setSelectedForSuperset(selectedForSuperset.filter(i => i !== index).map(i => i > index ? i - 1 : i));
+    if (expandedExercise === index) setExpandedExercise(null);
   };
 
   const unlinkSuperset = (index) => {
@@ -208,26 +193,17 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   };
 
   const toggleSelectForSuperset = (index) => {
-    if (selectedForSuperset.includes(index)) {
-      setSelectedForSuperset(selectedForSuperset.filter(i => i !== index));
-    } else {
-      setSelectedForSuperset([...selectedForSuperset, index]);
-    }
+    setSelectedForSuperset(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
   };
 
   const createSuperset = () => {
     if (selectedForSuperset.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
-      const updated = exercises.map((ex, i) =>
-        selectedForSuperset.includes(i) ? { ...ex, supersetId } : ex
-      );
-      setExercises(updated);
+      setExercises(exercises.map((ex, i) => selectedForSuperset.includes(i) ? { ...ex, supersetId } : ex));
       setSelectedForSuperset([]);
       setSelectMode(false);
     }
   };
-
-  const groups = getGroupedExercises();
 
   const updateExercisePhase = (index, phase) => {
     const updated = [...exercises];
@@ -235,17 +211,61 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
     setExercises(updated);
   };
 
+  const updateExerciseRestTime = (index, restTime) => {
+    const updated = [...exercises];
+    updated[index] = { ...updated[index], restTime };
+    setExercises(updated);
+  };
+
+  const updateExerciseNotes = (index, notes) => {
+    const updated = [...exercises];
+    updated[index] = { ...updated[index], notes };
+    setExercises(updated);
+  };
+
+  const addSet = (exIndex) => {
+    const updated = [...exercises];
+    const exercise = updated[exIndex];
+    const lastSet = exercise.sets.slice(-1)[0] || getDefaultSetForCategory(exercise.category);
+    const newSet = { ...getDefaultSetForCategory(exercise.category) };
+    // Copy values from last set
+    Object.keys(lastSet).forEach(key => {
+      if (key !== 'completed' && key !== 'completedAt' && lastSet[key] !== undefined) {
+        newSet[key] = lastSet[key];
+      }
+    });
+    exercise.sets.push(newSet);
+    setExercises(updated);
+  };
+
+  const removeSet = (exIndex, setIndex) => {
+    const updated = [...exercises];
+    if (updated[exIndex].sets.length > 1) {
+      updated[exIndex].sets.splice(setIndex, 1);
+      setExercises(updated);
+    }
+  };
+
+  const updateSetValue = (exIndex, setIndex, field, value) => {
+    const updated = [...exercises];
+    updated[exIndex].sets[setIndex][field] = value;
+    setExercises(updated);
+  };
+
+  const groups = getGroupedExercises();
+
   const renderExerciseCard = (exercise, index, isSuperset = false, isFirst = true, isLast = true) => {
-    const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
-    const phaseInfo = exercise.phase ? EXERCISE_PHASES[exercise.phase] : null;
+    const isExpanded = expandedExercise === index;
     const isSelected = selectedForSuperset.includes(index);
+    const fields = CATEGORIES[exercise.category]?.fields || ['weight', 'reps'];
 
     return (
       <div
         key={index}
         onClick={() => selectMode && toggleSelectForSuperset(index)}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
+        className={`${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
       >
+        {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {isSuperset && <div className="w-1 h-8 bg-teal-500 rounded-full" />}
@@ -254,16 +274,8 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
                 {isSelected && <Icons.Check />}
               </div>
             )}
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-white">{exercise.name}</span>
-                {typeInfo && (
-                  <span className={`${typeInfo.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
-                    {typeInfo.icon} {typeInfo.label}
-                  </span>
-                )}
-                {exercise.highlight && <span className="text-rose-400">⭐</span>}
-              </div>
+            <div className="flex-1">
+              <span className="font-semibold text-white">{exercise.name}</span>
               <div className="text-xs text-gray-400">
                 {exercise.bodyPart} • {exercise.sets?.length || 3} sets • Rest {formatDuration(exercise.restTime || 90)}
               </div>
@@ -271,10 +283,11 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
           </div>
           {!selectMode && (
             <div className="flex items-center gap-1">
+              <button onClick={() => setExpandedExercise(isExpanded ? null : index)} className="text-cyan-400 hover:text-cyan-300 p-2">
+                {isExpanded ? <Icons.ChevronDown /> : <Icons.ChevronRight />}
+              </button>
               {isSuperset && (
-                <button onClick={() => unlinkSuperset(index)} className="text-teal-400 hover:text-teal-300 p-2" title="Unlink">
-                  <Icons.Link />
-                </button>
+                <button onClick={() => unlinkSuperset(index)} className="text-teal-400 hover:text-teal-300 p-2"><Icons.Link /></button>
               )}
               <button onClick={() => removeExercise(index)} className="text-red-400 hover:text-red-300 p-2"><Icons.Trash /></button>
             </div>
@@ -285,26 +298,83 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         {!selectMode && (
           <div className="flex gap-1 mb-2">
             {Object.entries(EXERCISE_PHASES).map(([key, info]) => (
-              <button
-                key={key}
-                onClick={() => updateExercisePhase(index, key)}
-                className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  exercise.phase === key
-                    ? `${info.color} text-white`
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
+              <button key={key} onClick={() => updateExercisePhase(index, key)}
+                className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${exercise.phase === key ? `${info.color} text-white` : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
                 {info.icon} {info.label}
               </button>
             ))}
           </div>
         )}
 
-        {exercise.notes && (
-          <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 mt-2">
-            <div className="text-xs text-amber-400 flex items-center gap-1">
-              <span>📝</span> {exercise.notes}
+        {/* Expanded Details */}
+        {isExpanded && !selectMode && (
+          <div className="mt-3 pt-3 border-t border-gray-800">
+            {/* Rest Time */}
+            <div className="mb-3">
+              <div className="text-xs text-gray-400 mb-2">Rest Time</div>
+              <div className="flex flex-wrap gap-1">
+                {restTimePresets.map(t => (
+                  <button key={t} onClick={() => updateExerciseRestTime(index, t)}
+                    className={`px-3 py-1 text-xs rounded-full ${exercise.restTime === t ? 'bg-teal-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                    {formatDuration(t)}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Exercise Notes */}
+            <div className="mb-3">
+              <input type="text" value={exercise.notes || ''} onChange={e => updateExerciseNotes(index, e.target.value)}
+                placeholder="Exercise notes (optional)" className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-600" />
+            </div>
+
+            {/* Sets */}
+            <div className="mb-3">
+              <div className="text-xs text-gray-400 mb-2">Sets ({exercise.sets?.length || 0})</div>
+              <div className="space-y-2">
+                {exercise.sets?.map((set, sIdx) => (
+                  <div key={sIdx} className="flex items-center gap-2 bg-gray-800 rounded-lg p-2">
+                    <span className="text-xs text-gray-500 w-6">#{sIdx + 1}</span>
+                    {fields.map(field => (
+                      <div key={field} className="flex-1">
+                        <label className="text-xs text-gray-500 block">{field === 'bandColor' ? 'Band' : field}</label>
+                        {field === 'bandColor' ? (
+                          <select value={set.bandColor || ''} onChange={e => updateSetValue(index, sIdx, 'bandColor', e.target.value)}
+                            className="w-full bg-gray-700 text-white text-sm px-2 py-1 rounded focus:outline-none">
+                            <option value="">Select</option>
+                            {Object.entries(BAND_COLORS).map(([color, info]) => (
+                              <option key={color} value={color}>{info.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="number" value={set[field] || ''} onChange={e => updateSetValue(index, sIdx, field, e.target.value ? Number(e.target.value) : '')}
+                            placeholder={field} className="w-full bg-gray-700 text-white text-sm px-2 py-1 rounded focus:outline-none" />
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={() => removeSet(index, sIdx)} disabled={exercise.sets.length <= 1}
+                      className="text-red-400 hover:text-red-300 p-1 disabled:opacity-30"><Icons.X /></button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => addSet(index)} className="w-full mt-2 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-teal-400 text-sm flex items-center justify-center gap-1">
+                <Icons.Plus /> Add Set
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Collapsed set preview */}
+        {!isExpanded && exercise.sets?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {exercise.sets.slice(0, 5).map((set, sIdx) => (
+              <span key={sIdx} className="bg-gray-800 px-2 py-0.5 rounded text-xs text-gray-400">
+                {set.weight && `${set.weight}lb`}{set.reps && ` ×${set.reps}`}
+                {set.duration && formatDuration(set.duration)}
+                {set.bandColor && set.bandColor}
+              </span>
+            ))}
+            {exercise.sets.length > 5 && <span className="text-xs text-gray-500">+{exercise.sets.length - 5} more</span>}
           </div>
         )}
       </div>
@@ -326,8 +396,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
           <span className="text-teal-300 text-sm">{selectedForSuperset.length} selected</span>
           <div className="flex gap-2">
             <button onClick={() => { setSelectMode(false); setSelectedForSuperset([]); }} className="text-gray-400 text-sm">Cancel</button>
-            <button onClick={createSuperset} disabled={selectedForSuperset.length < 2}
-              className="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm font-medium disabled:opacity-50">
+            <button onClick={createSuperset} disabled={selectedForSuperset.length < 2} className="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm font-medium disabled:opacity-50">
               Link as Superset
             </button>
           </div>
@@ -350,9 +419,9 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Workout notes (optional)"
           className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 mb-4 text-sm resize-none h-20" />
 
-        <div className="text-sm text-gray-400 mb-3">{exercises.length} exercises</div>
+        <div className="text-sm text-gray-400 mb-3">{exercises.length} exercises • Tap exercise to edit details</div>
 
-        {groups.map((group, gIdx) => {
+        {groups.map((group) => {
           if (group.type === 'superset') {
             return (
               <div key={group.supersetId} className="mb-3">
@@ -361,9 +430,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
                   <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
                 </div>
                 <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
-                  {group.exercises.map(({ exercise, index }, i) =>
-                    renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
-                  )}
+                  {group.exercises.map(({ exercise, index }, i) => renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1))}
                 </div>
               </div>
             );
@@ -384,12 +451,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
       </div>
 
       {showExercisePicker && (
-        <ExerciseSearchModal
-          exercises={allExercises}
-          onSelect={(ex) => addExercises([ex], false)}
-          onSelectMultiple={addExercises}
-          onClose={() => setShowExercisePicker(false)}
-        />
+        <ExerciseSearchModal exercises={allExercises} onSelect={(ex) => addExercises([ex], false)} onSelectMultiple={addExercises} onClose={() => setShowExercisePicker(false)} />
       )}
     </div>
   );
@@ -404,11 +466,10 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null);
   const [viewingTemplate, setViewingTemplate] = useState(null);
 
-  // Calculate estimated time for a template
   const calculateEstimatedTime = (template) => {
     if (template.estimatedTime) return template.estimatedTime;
     return Math.round(template.exercises.reduce((total, ex) => {
-      const setTime = (ex.sets?.length || 3) * 45; // ~45 sec per set
+      const setTime = (ex.sets?.length || 3) * 45;
       const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
       return total + setTime + restTime;
     }, 0) / 60);
@@ -417,10 +478,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const getAllSubfolderIds = (parentId) => {
     const ids = [];
     const recurse = (pid) => {
-      folders.filter(f => f.parentId === pid).forEach(f => {
-        ids.push(f.id);
-        recurse(f.id);
-      });
+      folders.filter(f => f.parentId === pid).forEach(f => { ids.push(f.id); recurse(f.id); });
     };
     recurse(parentId);
     return ids;
@@ -442,77 +500,49 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const getBreadcrumbs = () => {
     const crumbs = [];
     let folder = currentFolder;
-    while (folder) {
-      crumbs.unshift(folder);
-      folder = folders.find(f => f.id === folder.parentId);
-    }
+    while (folder) { crumbs.unshift(folder); folder = folders.find(f => f.id === folder.parentId); }
     return crumbs;
   };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-black">
-      {/* Background Image - fixed position */}
       <div className="fixed inset-0 z-0 bg-black">
         <img src="/backgrounds/bg-4.jpg" alt="" className="w-full h-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
 
       <div className="relative z-10 flex flex-col h-full">
-        {/* Fixed Header */}
         <div className="flex-shrink-0 p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-white">Templates</h2>
             <div className="flex gap-2">
-              <button onClick={() => setShowCreateFolder(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10" title="New Folder">
-                <Icons.Folder />
-              </button>
-              <button onClick={() => setShowImport(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10" title="Import JSON">
-                <Icons.Import />
-              </button>
+              <button onClick={() => setShowCreateFolder(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10"><Icons.Folder /></button>
+              <button onClick={() => setShowImport(true)} className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10"><Icons.Import /></button>
               <button onClick={() => setShowCreateTemplate(true)} className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/30 flex items-center gap-1 border border-white/30">
                 <Icons.Plus /> New
               </button>
             </div>
           </div>
-          {/* Breadcrumbs */}
           <div className="flex items-center gap-1 text-sm overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <button onClick={() => setCurrentFolderId('root')}
-              className={`px-2 py-1 rounded ${currentFolderId === 'root' ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
-              All Templates
-            </button>
-            {getBreadcrumbs().map((crumb, i) => (
+            <button onClick={() => setCurrentFolderId('root')} className={`px-2 py-1 rounded ${currentFolderId === 'root' ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>All Templates</button>
+            {getBreadcrumbs().map((crumb) => (
               <Fragment key={crumb.id}>
                 <Icons.ChevronRight />
-                <button onClick={() => setCurrentFolderId(crumb.id)}
-                  className={`px-2 py-1 rounded ${currentFolderId === crumb.id ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>
-                  {crumb.name}
-                </button>
+                <button onClick={() => setCurrentFolderId(crumb.id)} className={`px-2 py-1 rounded ${currentFolderId === crumb.id ? 'text-teal-400' : 'text-gray-400 hover:text-white'}`}>{crumb.name}</button>
               </Fragment>
             ))}
           </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div
-          className="flex-1 overflow-y-auto p-4"
-          style={{
-            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
-            overscrollBehavior: 'contain'
-          }}
-          onScroll={(e) => onScroll?.(e.target.scrollTop)}
-        >
-          {/* Subfolders */}
+        <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)', overscrollBehavior: 'contain' }} onScroll={(e) => onScroll?.(e.target.scrollTop)}>
           {childFolders.map(folder => {
             const allSubfolderIds = getAllSubfolderIds(folder.id);
             const totalTemplateCount = templates.filter(t => t.folderId === folder.id || allSubfolderIds.includes(t.folderId)).length;
             const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
 
             return (
-              <button
-                key={folder.id}
-                onClick={() => setCurrentFolderId(folder.id)}
-                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 active:bg-white/20 group border border-white/20 cursor-pointer text-left"
-              >
+              <button key={folder.id} onClick={() => setCurrentFolderId(folder.id)}
+                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 active:bg-white/20 group border border-white/20 cursor-pointer text-left">
                 <span className="text-teal-400"><Icons.Folder /></span>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-white block">{folder.name}</span>
@@ -520,38 +550,17 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
                     {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
                   </div>
                 </div>
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isEmpty) {
-                      onDeleteFolder(folder.id);
-                    } else {
-                      setDeleteFolderConfirm({
-                        folder,
-                        subfolderIds: allSubfolderIds,
-                        templateCount: totalTemplateCount,
-                        folderCount: allSubfolderIds.length
-                      });
-                    }
-                  }}
-                  className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Icons.Trash />
-                </span>
+                <span onClick={(e) => { e.stopPropagation(); isEmpty ? onDeleteFolder(folder.id) : setDeleteFolderConfirm({ folder, subfolderIds: allSubfolderIds, templateCount: totalTemplateCount, folderCount: allSubfolderIds.length }); }}
+                  className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash /></span>
                 <span className="text-teal-500/70"><Icons.ChevronRight /></span>
               </button>
             );
           })}
 
-          {/* Templates in current folder */}
           {folderTemplates.map(template => {
             const estTime = calculateEstimatedTime(template);
-            // Count exercises by phase
             const phaseCounts = { warmup: 0, workout: 0, cooldown: 0 };
-            template.exercises.forEach(ex => {
-              const phase = ex.phase || 'workout';
-              phaseCounts[phase]++;
-            });
+            template.exercises.forEach(ex => { phaseCounts[ex.phase || 'workout']++; });
 
             return (
               <div key={template.id} className="bg-gray-900/80 rounded-2xl p-4 mb-3 border border-gray-800/50 hover:border-cyan-800/30 transition-colors">
@@ -560,147 +569,64 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
                     <h3 className="text-lg font-semibold text-white">{template.name}</h3>
                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                       <span className="text-cyan-400/70">{template.exercises.length} exercises</span>
-                      <span className="flex items-center gap-1 text-teal-400">
-                        <Icons.TimerSmall /> ~{estTime} min
-                      </span>
+                      <span className="flex items-center gap-1 text-teal-400"><Icons.TimerSmall /> ~{estTime} min</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400/70 hover:text-cyan-300 rounded-lg hover:bg-gray-800">
-                      <Icons.Edit />
-                    </button>
+                    <button onClick={() => setEditingTemplate(template)} className="p-2 text-cyan-400/70 hover:text-cyan-300 rounded-lg hover:bg-gray-800"><Icons.Edit /></button>
                     <button onClick={() => onStartTemplate(template)} className="bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-800">Start</button>
                   </div>
                 </div>
 
-                {/* Clickable summary area */}
-                <button
-                  onClick={() => setViewingTemplate(template)}
-                  className="w-full text-left"
-                >
+                <button onClick={() => setViewingTemplate(template)} className="w-full text-left">
                   {template.notes && (
                     <div className="bg-teal-900/20 border border-teal-700/30 rounded-lg p-2 mb-3">
-                      <div className="text-xs text-teal-300 flex items-center gap-1">
-                        <span>📋</span> {template.notes}
-                      </div>
+                      <div className="text-xs text-teal-300 flex items-center gap-1"><span>📋</span> {template.notes}</div>
                     </div>
                   )}
-
-                  {/* Phase indicators */}
                   <div className="flex gap-2 mb-2">
-                    {phaseCounts.warmup > 0 && (
-                      <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">
-                        🔥 {phaseCounts.warmup} warm-up
-                      </span>
-                    )}
-                    {phaseCounts.workout > 0 && (
-                      <span className="bg-rose-500/20 text-rose-400 text-xs px-2 py-0.5 rounded-full">
-                        💪 {phaseCounts.workout} workout
-                      </span>
-                    )}
-                    {phaseCounts.cooldown > 0 && (
-                      <span className="bg-teal-500/20 text-teal-400 text-xs px-2 py-0.5 rounded-full">
-                        🧊 {phaseCounts.cooldown} cool down
-                      </span>
-                    )}
+                    {phaseCounts.warmup > 0 && <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">🔥 {phaseCounts.warmup}</span>}
+                    {phaseCounts.workout > 0 && <span className="bg-rose-500/20 text-rose-400 text-xs px-2 py-0.5 rounded-full">💪 {phaseCounts.workout}</span>}
+                    {phaseCounts.cooldown > 0 && <span className="bg-teal-500/20 text-teal-400 text-xs px-2 py-0.5 rounded-full">🧊 {phaseCounts.cooldown}</span>}
                   </div>
-
                   <div className="space-y-1">
                     {template.exercises.slice(0, 4).map((ex, i) => (
                       <div key={i} className="text-sm text-gray-400 flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          ex.phase === 'warmup' ? 'bg-amber-500' :
-                          ex.phase === 'cooldown' ? 'bg-teal-500' :
-                          ex.supersetId ? 'bg-teal-500' : 'bg-rose-500/70'
-                        }`}></span>
+                        <span className={`w-2 h-2 rounded-full ${ex.phase === 'warmup' ? 'bg-amber-500' : ex.phase === 'cooldown' ? 'bg-teal-500' : ex.supersetId ? 'bg-teal-500' : 'bg-rose-500/70'}`}></span>
                         {ex.name} - {ex.sets?.length || 3} sets
                       </div>
                     ))}
-                    {template.exercises.length > 4 && (
-                      <div className="text-xs text-cyan-400 mt-2 hover:text-cyan-300">
-                        Tap to view all {template.exercises.length} exercises →
-                      </div>
-                    )}
+                    {template.exercises.length > 4 && <div className="text-xs text-cyan-400 mt-2 hover:text-cyan-300">Tap to view all {template.exercises.length} exercises →</div>}
                   </div>
                 </button>
               </div>
             );
           })}
 
-          {childFolders.length === 0 && folderTemplates.length === 0 && (
-            <div className="text-center text-gray-400 py-8">No templates in this folder</div>
-          )}
+          {childFolders.length === 0 && folderTemplates.length === 0 && <div className="text-center text-gray-400 py-8">No templates in this folder</div>}
         </div>
       </div>
 
-      {showImport && (
-        <ImportModal
-          folders={folders}
-          currentFolderId={currentFolderId}
-          onAddFolder={onAddFolder}
-          onBulkAddFolders={onBulkAddFolders}
-          onImport={onImport}
-          onBulkImport={onBulkImport}
-          onUpdateTemplate={onUpdateTemplate}
-          onAddExercises={onAddExercises}
-          existingExercises={exercises}
-          existingTemplates={templates}
-          onClose={() => setShowImport(false)}
-        />
-      )}
-
+      {showImport && <ImportModal folders={folders} currentFolderId={currentFolderId} onAddFolder={onAddFolder} onBulkAddFolders={onBulkAddFolders} onImport={onImport} onBulkImport={onBulkImport} onUpdateTemplate={onUpdateTemplate} onAddExercises={onAddExercises} existingExercises={exercises} existingTemplates={templates} onClose={() => setShowImport(false)} />}
       {showCreateFolder && <CreateFolderModal parentId={currentFolderId} onSave={onAddFolder} onClose={() => setShowCreateFolder(false)} />}
-
-      {showCreateTemplate && (
-        <CreateTemplateModal folderId={currentFolderId} allExercises={exercises}
-          onSave={t => { onImport(t); setShowCreateTemplate(false); }}
-          onClose={() => setShowCreateTemplate(false)} />
-      )}
-
-      {editingTemplate && (
-        <EditTemplateModal template={editingTemplate} onSave={onUpdateTemplate} onDelete={onDeleteTemplate}
-          onClose={() => setEditingTemplate(null)} allExercises={exercises} />
-      )}
-
-      {viewingTemplate && (
-        <TemplateDetailModal
-          template={viewingTemplate}
-          onClose={() => setViewingTemplate(null)}
-          onStart={onStartTemplate}
-          onEdit={setEditingTemplate}
-        />
-      )}
+      {showCreateTemplate && <CreateTemplateModal folderId={currentFolderId} allExercises={exercises} onSave={t => { onImport(t); setShowCreateTemplate(false); }} onClose={() => setShowCreateTemplate(false)} />}
+      {editingTemplate && <EditTemplateModal template={editingTemplate} onSave={onUpdateTemplate} onDelete={onDeleteTemplate} onClose={() => setEditingTemplate(null)} allExercises={exercises} />}
+      {viewingTemplate && <TemplateDetailModal template={viewingTemplate} onClose={() => setViewingTemplate(null)} onStart={onStartTemplate} onEdit={setEditingTemplate} />}
 
       {deleteFolderConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold text-white mb-4">Delete Folder?</h3>
             <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-4">
-              <p className="text-red-400 text-sm">
-                This will permanently delete <span className="font-semibold">"{deleteFolderConfirm.folder.name}"</span> and all its contents:
-              </p>
+              <p className="text-red-400 text-sm">This will permanently delete "{deleteFolderConfirm.folder.name}" and all its contents:</p>
               <ul className="mt-2 text-sm text-red-300 space-y-1">
-                {deleteFolderConfirm.folderCount > 0 && (
-                  <li>• {deleteFolderConfirm.folderCount} subfolder{deleteFolderConfirm.folderCount !== 1 ? 's' : ''}</li>
-                )}
-                {deleteFolderConfirm.templateCount > 0 && (
-                  <li>• {deleteFolderConfirm.templateCount} template{deleteFolderConfirm.templateCount !== 1 ? 's' : ''}</li>
-                )}
+                {deleteFolderConfirm.folderCount > 0 && <li>• {deleteFolderConfirm.folderCount} subfolder{deleteFolderConfirm.folderCount !== 1 ? 's' : ''}</li>}
+                {deleteFolderConfirm.templateCount > 0 && <li>• {deleteFolderConfirm.templateCount} template{deleteFolderConfirm.templateCount !== 1 ? 's' : ''}</li>}
               </ul>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteFolderConfirm(null)}
-                className="flex-1 bg-gray-700 text-white py-3 rounded-xl font-medium hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => executeDeleteFolder(deleteFolderConfirm.folder, deleteFolderConfirm.subfolderIds)}
-                className="flex-1 bg-red-600 text-white py-3 rounded-xl font-medium hover:bg-red-700"
-              >
-                Delete All
-              </button>
+              <button onClick={() => setDeleteFolderConfirm(null)} className="flex-1 bg-gray-700 text-white py-3 rounded-xl font-medium hover:bg-gray-600">Cancel</button>
+              <button onClick={() => executeDeleteFolder(deleteFolderConfirm.folder, deleteFolderConfirm.subfolderIds)} className="flex-1 bg-red-600 text-white py-3 rounded-xl font-medium hover:bg-red-700">Delete All</button>
             </div>
           </div>
         </div>
@@ -708,6 +634,5 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
     </div>
   );
 };
-
 
 export { TemplatesScreen };

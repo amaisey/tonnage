@@ -1,15 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
+import { workoutDb } from '../db/workoutDb';
 
-const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, history = [], onScroll, navVisible }) => {
+const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, onScroll, navVisible }) => {
   const [search, setSearch] = useState('');
   const [selectedBodyPart, setSelectedBodyPart] = useState('All');
   const [editingExercise, setEditingExercise] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  // Load history from IndexedDB when component mounts
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const workouts = await workoutDb.getAll();
+        workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+        setHistory(workouts);
+      } catch (err) {
+        console.error('Error loading history:', err);
+      }
+    };
+    loadHistory();
+  }, []);
 
   const filtered = exercises.filter(ex => {
     const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase());
