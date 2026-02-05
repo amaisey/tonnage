@@ -67,14 +67,17 @@ function App() {
       template.exercises.map(async (ex) => {
         const prevData = await getPreviousData(ex.name);
         // Mark all pre-filled values as proposed (50% opacity) until user edits them
-        const sets = prevData && prevData.length > 0
-          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false }))
+        const sets = prevData?.sets?.length > 0
+          ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false }))
           : ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
         return {
           ...ex,
-          restTime: ex.restTime || 90,
+          // Use previous rest time if available, otherwise template's, otherwise default
+          restTime: prevData?.restTime || ex.restTime || 90,
+          // Preserve previous notes if they exist
+          notes: prevData?.notes || ex.notes || '',
           sets,
-          previousSets: prevData
+          previousSets: prevData?.sets
         };
       })
     );

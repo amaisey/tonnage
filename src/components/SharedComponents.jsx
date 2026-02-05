@@ -122,6 +122,153 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
   );
 };
 
+// Duration Pad - specialized input for time (minutes:seconds)
+const DurationPad = ({ value, onChange, onClose, onNext, fieldLabel }) => {
+  // Value is stored in seconds, convert to minutes and seconds for display
+  const totalSeconds = parseInt(value) || 0;
+  const [minutes, setMinutes] = useState(Math.floor(totalSeconds / 60));
+  const [seconds, setSeconds] = useState(totalSeconds % 60);
+  const [editingField, setEditingField] = useState('minutes'); // 'minutes' or 'seconds'
+  const [hasEdited, setHasEdited] = useState(false);
+
+  // Sync when value prop changes
+  useEffect(() => {
+    const total = parseInt(value) || 0;
+    setMinutes(Math.floor(total / 60));
+    setSeconds(total % 60);
+    setHasEdited(false);
+  }, [fieldLabel]);
+
+  const updateParent = (mins, secs) => {
+    const totalSecs = (mins * 60) + secs;
+    onChange(String(totalSecs));
+  };
+
+  const handleDigit = (digit) => {
+    if (editingField === 'minutes') {
+      const newMins = hasEdited ? Math.min(999, parseInt(String(minutes) + digit) || 0) : parseInt(digit);
+      setMinutes(newMins);
+      updateParent(newMins, seconds);
+    } else {
+      const newSecs = hasEdited ? Math.min(59, parseInt(String(seconds).slice(-1) + digit) || 0) : parseInt(digit);
+      setSeconds(newSecs);
+      updateParent(minutes, newSecs);
+    }
+    setHasEdited(true);
+  };
+
+  const handleBackspace = () => {
+    if (editingField === 'minutes') {
+      const newMins = Math.floor(minutes / 10);
+      setMinutes(newMins);
+      updateParent(newMins, seconds);
+    } else {
+      const newSecs = Math.floor(seconds / 10);
+      setSeconds(newSecs);
+      updateParent(minutes, newSecs);
+    }
+  };
+
+  const handlePreset = (mins) => {
+    setMinutes(mins);
+    setSeconds(0);
+    updateParent(mins, 0);
+    setHasEdited(true);
+  };
+
+  const handlePlusMinus = (delta) => {
+    if (editingField === 'minutes') {
+      const newMins = Math.max(0, minutes + delta);
+      setMinutes(newMins);
+      updateParent(newMins, seconds);
+    } else {
+      let newSecs = seconds + delta;
+      let newMins = minutes;
+      if (newSecs < 0) { newSecs = 59; newMins = Math.max(0, newMins - 1); }
+      if (newSecs > 59) { newSecs = 0; newMins = newMins + 1; }
+      setMinutes(newMins);
+      setSeconds(newSecs);
+      updateParent(newMins, newSecs);
+    }
+    setHasEdited(true);
+  };
+
+  const presets = [5, 10, 15, 20, 30, 45, 60, 90];
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 bg-gray-900 border-t border-gray-800 z-50 rounded-t-2xl">
+      <div className="p-3">
+        {/* Header */}
+        <div className="text-center text-gray-400 text-xs uppercase mb-2">{fieldLabel}</div>
+
+        {/* Time Display */}
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <button
+            onClick={() => { setEditingField('minutes'); setHasEdited(false); }}
+            className={`px-4 py-3 rounded-lg text-3xl font-mono ${editingField === 'minutes' ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-300'}`}
+          >
+            {String(minutes).padStart(2, '0')}
+          </button>
+          <span className="text-3xl font-mono text-gray-500">:</span>
+          <button
+            onClick={() => { setEditingField('seconds'); setHasEdited(false); }}
+            className={`px-4 py-3 rounded-lg text-3xl font-mono ${editingField === 'seconds' ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-300'}`}
+          >
+            {String(seconds).padStart(2, '0')}
+          </button>
+          <span className="text-gray-500 text-sm ml-2">{editingField === 'minutes' ? 'min' : 'sec'}</span>
+        </div>
+
+        {/* Preset Buttons */}
+        <div className="flex flex-wrap gap-1 mb-3 justify-center">
+          {presets.map(mins => (
+            <button
+              key={mins}
+              onClick={() => handlePreset(mins)}
+              className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700"
+            >
+              {mins >= 60 ? `${mins/60}h` : `${mins}m`}
+            </button>
+          ))}
+        </div>
+
+        {/* Dismiss button */}
+        <button onClick={onClose} className="w-full h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center justify-center mb-2">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+
+        {/* Number Pad */}
+        <div className="grid grid-cols-4 gap-2">
+          {['1', '2', '3'].map(d => (
+            <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
+          ))}
+          <button onClick={() => setEditingField(editingField === 'minutes' ? 'seconds' : 'minutes')}
+            className="bg-teal-700 text-white text-sm font-medium py-4 rounded-lg hover:bg-teal-600">
+            {editingField === 'minutes' ? '→ SEC' : '→ MIN'}
+          </button>
+
+          {['4', '5', '6'].map(d => (
+            <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
+          ))}
+          <div className="flex gap-1">
+            <button onClick={() => handlePlusMinus(-1)} className="flex-1 bg-gray-700 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-600">−</button>
+            <button onClick={() => handlePlusMinus(1)} className="flex-1 bg-gray-700 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-600">+</button>
+          </div>
+
+          {['7', '8', '9'].map(d => (
+            <button key={d} onClick={() => handleDigit(d)} className="bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">{d}</button>
+          ))}
+          <button onClick={handleBackspace} className="bg-red-500/20 text-red-400 text-xl font-medium py-4 rounded-lg hover:bg-red-500/30">⌫</button>
+
+          <button onClick={() => handleDigit('0')} className="col-span-2 bg-gray-800 text-white text-xl font-medium py-4 rounded-lg hover:bg-gray-700">0</button>
+          <button onClick={() => handlePreset(0)} className="bg-gray-700 text-gray-400 text-sm font-medium py-4 rounded-lg hover:bg-gray-600">Clear</button>
+          <button onClick={onNext} className="bg-cyan-600 text-white text-base font-bold py-4 rounded-lg hover:bg-cyan-700">Next</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Set Input Row Component with rest time display
 const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
@@ -552,4 +699,4 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
   );
 };
 
-export { NumberPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };
+export { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };

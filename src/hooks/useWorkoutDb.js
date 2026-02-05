@@ -115,6 +115,7 @@ export function useAddWorkout() {
 
 /**
  * Hook to get previous exercise data for a specific exercise
+ * Returns full exercise data: sets, restTime, notes, phase
  */
 export function usePreviousExerciseData() {
   const cache = useRef(new Map());
@@ -126,7 +127,15 @@ export function usePreviousExerciseData() {
     }
 
     const result = await workoutDb.getLastWorkoutWithExercise(exerciseName);
-    const data = result?.exercise?.sets?.filter(s => s.completed) || null;
+    const exercise = result?.exercise;
+
+    // Return full exercise data including settings
+    const data = exercise ? {
+      sets: exercise.sets?.filter(s => s.completed) || [],
+      restTime: exercise.restTime,
+      notes: exercise.notes,
+      phase: exercise.phase
+    } : null;
 
     // Cache the result
     cache.current.set(exerciseName, data);

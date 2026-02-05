@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { NumberPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
+import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
 const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
@@ -34,13 +34,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
   }, [editingRestTime]);
 
-  // Get previous workout data for a specific exercise
+  // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
   const getPreviousExerciseData = (exerciseName) => {
     if (!history || history.length === 0) return null;
     for (const workout of history) {
       const prevExercise = workout.exercises.find(ex => ex.name === exerciseName);
       if (prevExercise && prevExercise.sets.some(s => s.completed)) {
-        return prevExercise.sets.filter(s => s.completed);
+        return {
+          sets: prevExercise.sets.filter(s => s.completed),
+          restTime: prevExercise.restTime,
+          notes: prevExercise.notes,
+          phase: prevExercise.phase
+        };
       }
     }
     return null;
@@ -69,18 +74,31 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const supersetId = `superset-${Date.now()}`;
       selectedExercises.forEach(ex => {
         const prevData = getPreviousExerciseData(ex.name);
-        const sets = prevData && prevData.length > 0
-          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined }))
+        const sets = prevData?.sets?.length > 0
+          ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
-        updated.exercises.push({ ...ex, supersetId, restTime: 90, sets, previousSets: prevData });
+        updated.exercises.push({
+          ...ex,
+          supersetId,
+          restTime: prevData?.restTime || 90,
+          notes: prevData?.notes || '',
+          sets,
+          previousSets: prevData?.sets
+        });
       });
     } else {
       selectedExercises.forEach(ex => {
         const prevData = getPreviousExerciseData(ex.name);
-        const sets = prevData && prevData.length > 0
-          ? prevData.map(s => ({ ...s, completed: false, completedAt: undefined }))
+        const sets = prevData?.sets?.length > 0
+          ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
-        updated.exercises.push({ ...ex, restTime: 90, sets, previousSets: prevData });
+        updated.exercises.push({
+          ...ex,
+          restTime: prevData?.restTime || 90,
+          notes: prevData?.notes || '',
+          sets,
+          previousSets: prevData?.sets
+        });
       });
     }
     setActiveWorkout(updated);
@@ -670,18 +688,28 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </>
       )}
 
-      {/* Number Pad */}
+      {/* Number Pad / Duration Pad */}
       {numpadState && activeWorkout && (
-        <NumberPad
-          value={String(activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.[numpadState.field] || '')}
-          onChange={handleNumpadChange}
-          onClose={closeNumpad}
-          onNext={handleNumpadNext}
-          showRPE={numpadState.field === 'reps'}
-          rpeValue={activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.rpe}
-          onRPEChange={handleRPEChange}
-          fieldLabel={numpadState.field === 'weight' ? 'Weight (lbs)' : numpadState.field === 'reps' ? 'Reps' : numpadState.field === 'duration' ? 'Duration (sec)' : numpadState.field === 'distance' ? 'Distance (mi)' : numpadState.field}
-        />
+        numpadState.field === 'duration' ? (
+          <DurationPad
+            value={String(activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.[numpadState.field] || '')}
+            onChange={handleNumpadChange}
+            onClose={closeNumpad}
+            onNext={handleNumpadNext}
+            fieldLabel="Duration"
+          />
+        ) : (
+          <NumberPad
+            value={String(activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.[numpadState.field] || '')}
+            onChange={handleNumpadChange}
+            onClose={closeNumpad}
+            onNext={handleNumpadNext}
+            showRPE={numpadState.field === 'reps'}
+            rpeValue={activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.rpe}
+            onRPEChange={handleRPEChange}
+            fieldLabel={numpadState.field === 'weight' ? 'Weight (lbs)' : numpadState.field === 'reps' ? 'Reps' : numpadState.field === 'distance' ? 'Distance (mi)' : numpadState.field}
+          />
+        )
       )}
 
       {/* Timer completion sound */}
