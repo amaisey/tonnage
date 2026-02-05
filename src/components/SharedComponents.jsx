@@ -376,8 +376,9 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       <div ref={rowRef} className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
         <div className="text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
         <div className="text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
-        {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
         {fields.length < 2 && <div></div>}
+        {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
+        {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
         <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
           <Icons.Check />
         </button>

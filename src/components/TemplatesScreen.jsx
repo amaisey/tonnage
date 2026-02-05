@@ -60,15 +60,15 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
         <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-gray-900 rounded-xl p-3 text-center">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-cyan-400">{template.exercises.length}</div>
             <div className="text-xs text-gray-400">Exercises</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3 text-center">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-teal-400">~{totalEstimatedTime}</div>
             <div className="text-xs text-gray-400">Minutes</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3 text-center">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-rose-400">{template.exercises.reduce((t, e) => t + (e.sets?.length || 3), 0)}</div>
             <div className="text-xs text-gray-400">Total Sets</div>
           </div>
@@ -171,7 +171,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
 
                       // Single exercise
                       return (
-                        <div key={group.index} className="bg-gray-900 rounded-xl p-3">
+                        <div key={group.index} className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3">
                           <div className="flex items-center justify-between">
                             <span className="font-medium text-white">{group.exercise.name}</span>
                           </div>
@@ -181,7 +181,7 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
                           {group.exercise.notes && <div className="text-xs text-amber-400 mt-1">📝 {group.exercise.notes}</div>}
                           <div className="flex flex-wrap gap-2 mt-2">
                             {group.exercise.sets?.map((set, sIdx) => (
-                              <div key={sIdx} className="bg-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
+                              <div key={sIdx} className="bg-white/10 rounded-lg px-2 py-1 text-xs text-gray-300">
                                 {set.weight && `${set.weight}lb `}
                                 {set.reps && `×${set.reps}`}
                                 {set.duration && formatDuration(set.duration)}
