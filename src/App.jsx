@@ -85,6 +85,8 @@ function App() {
 
     setActiveWorkout({
       name: template.name,
+      notes: template.notes || '', // Bug #5: Pass template notes to workout
+      estimatedTime: template.estimatedTime, // For pace tracking (Bug #15)
       exercises: exercisesWithPrevData,
       startTime: Date.now()
     });

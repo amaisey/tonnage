@@ -14,9 +14,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [bandPickerState, setBandPickerState] = useState(null); // { exIndex, setIndex, currentColor }
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState(null); // exercise index pending deletion
   const [collapsedPhases, setCollapsedPhases] = useState({}); // which phases are collapsed
+  const [addToPhase, setAddToPhase] = useState(null); // Bug #12: target phase for adding exercises
+  // Bug #11: Drag to reorder state
+  const [dragState, setDragState] = useState(null); // { exIndex, phase, touchY }
+  const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
-  const timerAudioRef = useRef(null);
   const restTimeRef = useRef(null);
+  const wakeLockRef = useRef(null);
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -33,6 +37,52 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       restTimeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [editingRestTime]);
+
+  // Bug #6: Keep screen awake during active workout using Wake Lock API
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if (activeWorkout && 'wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          console.log('Wake Lock activated');
+
+          // Re-acquire wake lock if released (e.g., when tab becomes visible again)
+          wakeLockRef.current.addEventListener('release', () => {
+            console.log('Wake Lock released');
+          });
+        } catch (err) {
+          console.log('Wake Lock error:', err);
+        }
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Wake Lock manually released');
+      }
+    };
+
+    if (activeWorkout) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+
+    // Re-acquire wake lock when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && activeWorkout) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeWorkout]);
 
   // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
   const getPreviousExerciseData = (exerciseName) => {
@@ -55,8 +105,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (restTimer.active && restTimer.time > 0) {
       intervalRef.current = setInterval(() => setRestTimer(prev => ({ ...prev, time: prev.time - 1 })), 1000);
     } else if (restTimer.time === 0 && restTimer.active) {
-      // Play completion sound
-      timerAudioRef.current?.play().catch(() => {});
+      // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 300]); // Pattern: short-pause-short-pause-long
+      }
       setRestTimer(prev => ({ ...prev, active: false }));
     }
     return () => clearInterval(intervalRef.current);
@@ -68,8 +120,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
+  // Bug #12: Now supports adding to specific phases via addToPhase state
   const addExercises = (selectedExercises, asSuperset) => {
     const updated = { ...activeWorkout };
+    const targetPhase = addToPhase || 'workout'; // Default to 'workout' phase
+
     if (asSuperset && selectedExercises.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
       selectedExercises.forEach(ex => {
@@ -80,6 +135,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         updated.exercises.push({
           ...ex,
           supersetId,
+          phase: targetPhase, // Bug #12: Assign to target phase
           restTime: prevData?.restTime || 90,
           notes: prevData?.notes || '',
           sets,
@@ -94,6 +150,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           : [getDefaultSetForCategory(ex.category)];
         updated.exercises.push({
           ...ex,
+          phase: targetPhase, // Bug #12: Assign to target phase
           restTime: prevData?.restTime || 90,
           notes: prevData?.notes || '',
           sets,
@@ -103,6 +160,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
     setActiveWorkout(updated);
     setShowExerciseModal(false);
+    setAddToPhase(null); // Reset target phase
   };
 
   const addSingleExercise = (exercise) => {
@@ -182,13 +240,57 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setEditingRestTime(null);
   };
 
+  // Bug #10: Smart multi-set completion - detects rapid completions and distributes time evenly
+  const RAPID_COMPLETION_THRESHOLD = 4000; // 4 seconds
+
   const toggleSetComplete = (exIndex, setIndex) => {
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
     const set = exercise.sets[setIndex];
     set.completed = !set.completed;
+
     if (set.completed) {
-      set.completedAt = Date.now();
+      const now = Date.now();
+      set.completedAt = now;
+
+      // Bug #10: Check for rapid completions and redistribute time
+      // Find all sets completed in the last RAPID_COMPLETION_THRESHOLD ms
+      const recentCompletions = [];
+      let anchorTime = null; // The completion time before the rapid batch
+
+      updated.exercises.forEach((ex, eIdx) => {
+        ex.sets?.forEach((s, sIdx) => {
+          if (s.completed && s.completedAt) {
+            const timeDiff = now - s.completedAt;
+            if (timeDiff <= RAPID_COMPLETION_THRESHOLD && timeDiff > 0) {
+              // This set was completed recently (within threshold)
+              recentCompletions.push({ exIndex: eIdx, setIndex: sIdx, completedAt: s.completedAt });
+            } else if (timeDiff > RAPID_COMPLETION_THRESHOLD) {
+              // This is a potential anchor (completed before the rapid batch)
+              if (!anchorTime || s.completedAt > anchorTime) {
+                anchorTime = s.completedAt;
+              }
+            }
+          }
+        });
+      });
+
+      // If we have multiple rapid completions, redistribute the time
+      if (recentCompletions.length >= 1 && anchorTime) {
+        const totalTime = now - anchorTime;
+        const numSets = recentCompletions.length + 1; // +1 for current set
+        const timePerSet = Math.round(totalTime / numSets);
+
+        // Redistribute timestamps evenly
+        recentCompletions.sort((a, b) => a.completedAt - b.completedAt);
+        recentCompletions.forEach((comp, idx) => {
+          const newTime = anchorTime + (timePerSet * (idx + 1));
+          updated.exercises[comp.exIndex].sets[comp.setIndex].completedAt = newTime;
+        });
+        // Set current completion to the final slot
+        set.completedAt = anchorTime + (timePerSet * numSets);
+      }
+
       startRestTimer(exercise.name, exercise.restTime || 90);
     }
     setActiveWorkout(updated);
@@ -213,6 +315,47 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       exercise.sets.splice(setIndex, 1);
       setActiveWorkout(updated);
     }
+  };
+
+  // Bug #11: Drag to reorder exercises
+  const startDrag = (exIndex) => {
+    const exercise = activeWorkout.exercises[exIndex];
+    setDragState({
+      exIndex,
+      phase: exercise.phase || 'workout',
+      originalIndex: exIndex
+    });
+  };
+
+  const cancelDrag = () => {
+    setDragState(null);
+  };
+
+  const dropExercise = (targetIndex, targetPhase) => {
+    if (!dragState) return;
+
+    const updated = { ...activeWorkout };
+    const [movedExercise] = updated.exercises.splice(dragState.exIndex, 1);
+
+    // Update the phase if dropping to a different phase
+    movedExercise.phase = targetPhase;
+
+    // Adjust target index if we removed from before the target
+    const adjustedTarget = dragState.exIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    updated.exercises.splice(adjustedTarget, 0, movedExercise);
+
+    setActiveWorkout(updated);
+    setDragState(null);
+  };
+
+  const moveExercise = (fromIndex, toIndex, newPhase) => {
+    if (fromIndex === toIndex) return;
+
+    const updated = { ...activeWorkout };
+    const [movedExercise] = updated.exercises.splice(fromIndex, 1);
+    movedExercise.phase = newPhase || movedExercise.phase;
+    updated.exercises.splice(toIndex, 0, movedExercise);
+    setActiveWorkout(updated);
   };
 
   const openBandPicker = (exIndex, setIndex, currentColor) => {
@@ -350,6 +493,57 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return setIndex === 0 && exIndex === 0;
   };
 
+  // Bug #15: Calculate pace tracking
+  const getPaceInfo = () => {
+    if (!activeWorkout?.estimatedTime || !activeWorkout?.exercises?.length) return null;
+
+    const totalSets = activeWorkout.exercises.reduce((sum, ex) => sum + (ex.sets?.length || 0), 0);
+    const completedSets = activeWorkout.exercises.reduce((sum, ex) =>
+      sum + (ex.sets?.filter(s => s.completed)?.length || 0), 0);
+
+    if (totalSets === 0) return null;
+
+    const elapsedMinutes = (Date.now() - activeWorkout.startTime) / 60000;
+    const estimatedMinutes = activeWorkout.estimatedTime;
+
+    // Calculate expected progress (what percentage should be done by now)
+    const expectedProgress = Math.min(1, elapsedMinutes / estimatedMinutes);
+    // Calculate actual progress
+    const actualProgress = completedSets / totalSets;
+
+    // Calculate pace difference in minutes
+    // Negative = ahead of schedule, Positive = behind schedule
+    const expectedSetsCompleted = expectedProgress * totalSets;
+    const setsAheadBehind = completedSets - expectedSetsCompleted;
+    const minutesPerSet = estimatedMinutes / totalSets;
+    const paceDiffMinutes = -setsAheadBehind * minutesPerSet;
+
+    // Color coding: green (within 3 min), yellow (3-10 min behind), red (>10 min behind)
+    let color = 'text-green-400';
+    let emoji = '🟢';
+    if (paceDiffMinutes > 10) {
+      color = 'text-red-400';
+      emoji = '🔴';
+    } else if (paceDiffMinutes > 3) {
+      color = 'text-yellow-400';
+      emoji = '🟡';
+    } else if (paceDiffMinutes < -3) {
+      color = 'text-green-300';
+      emoji = '🟢';
+    }
+
+    return {
+      completedSets,
+      totalSets,
+      elapsedMinutes: Math.round(elapsedMinutes),
+      estimatedMinutes,
+      paceDiffMinutes: Math.round(paceDiffMinutes),
+      color,
+      emoji,
+      isAhead: paceDiffMinutes < 0
+    };
+  };
+
   if (!activeWorkout) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black" style={{ touchAction: 'none' }}>
@@ -386,10 +580,37 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       ? { setIndex: numpadState.setIndex, field: numpadState.field }
       : null;
 
+    // Bug #11: If in drag mode, show compact view
+    if (dragState && dragState.exIndex !== exIndex) {
+      return (
+        <div
+          key={exIndex}
+          className={`bg-white/5 border border-white/10 rounded-xl p-3 mb-2 cursor-pointer hover:bg-white/10 transition-colors ${dragState.exIndex === exIndex ? 'opacity-50' : ''}`}
+          onClick={() => dropExercise(exIndex, exercise.phase || 'workout')}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 text-sm">↓ Drop here</span>
+            <span className="text-white font-medium">{exercise.name}</span>
+            <span className="text-gray-500 text-xs">({exercise.sets?.length || 0} sets)</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} bg-white/10 backdrop-blur-md border border-white/20 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-4'}`}>
+      <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} bg-white/10 backdrop-blur-md border border-white/20 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-4'}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
+            {/* Bug #11: Drag handle */}
+            {!isSuperset && (
+              <button
+                onClick={() => dragState ? cancelDrag() : startDrag(exIndex)}
+                className={`p-1 rounded ${dragState?.exIndex === exIndex ? 'text-cyan-400 bg-cyan-900/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/10'}`}
+                title={dragState ? 'Cancel reorder' : 'Reorder exercise'}
+              >
+                <Icons.GripVertical />
+              </button>
+            )}
             {isSuperset && (
               <div className="w-1 h-8 bg-teal-500 rounded-full" />
             )}
@@ -442,16 +663,47 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         </div>
 
-        {/* Rest time presets */}
+        {/* Rest time presets - Bug #8: Added custom input */}
         {editingRestTime === exIndex && (
           <div ref={restTimeRef} className="mb-3 p-2 bg-gray-800/50 rounded-lg">
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 items-center">
               {restTimePresets.map(t => (
                 <button key={t} onClick={() => updateExerciseRestTime(exIndex, t)}
                   className={`px-3 py-1 text-xs rounded-full ${exerciseRestTime === t ? 'bg-teal-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
                   {formatDuration(t)}
                 </button>
               ))}
+              <button
+                onClick={() => updateExerciseRestTime(exIndex, 0)}
+                className={`px-3 py-1 text-xs rounded-full ${exerciseRestTime === 0 ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                Off
+              </button>
+              <div className="flex items-center gap-1 ml-2">
+                <input
+                  type="number"
+                  placeholder="sec"
+                  min="0"
+                  max="600"
+                  className="w-16 px-2 py-1 text-xs bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = parseInt(e.target.value);
+                      if (val >= 0 && val <= 600) {
+                        updateExerciseRestTime(exIndex, val);
+                        e.target.value = '';
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (val >= 0 && val <= 600) {
+                      updateExerciseRestTime(exIndex, val);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <span className="text-xs text-gray-500">custom</span>
+              </div>
             </div>
           </div>
         )}
@@ -553,7 +805,24 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           <div className="flex-1 min-w-0">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
               className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
-            <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>
+            {/* Bug #15: Pace tracking display */}
+            {(() => {
+              const pace = getPaceInfo();
+              if (pace) {
+                return (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-400">{pace.elapsedMinutes}/{pace.estimatedMinutes} min</span>
+                    <span className="text-gray-600">•</span>
+                    <span className="text-gray-400">{pace.completedSets}/{pace.totalSets} sets</span>
+                    <span className="text-gray-600">•</span>
+                    <span className={pace.color}>
+                      {pace.emoji} {pace.isAhead ? `${Math.abs(pace.paceDiffMinutes)}m ahead` : pace.paceDiffMinutes === 0 ? 'on pace' : `${pace.paceDiffMinutes}m behind`}
+                    </span>
+                  </div>
+                );
+              }
+              return <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>;
+            })()}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm whitespace-nowrap">Cancel</button>
@@ -569,8 +838,21 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
       </div>
 
+      {/* Bug #11: Drag mode banner */}
+      {dragState && (
+        <div className="mx-4 mb-2 p-3 bg-cyan-900/50 border border-cyan-500/30 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-cyan-300">
+            <Icons.GripVertical />
+            <span className="text-sm font-medium">Reordering: {activeWorkout.exercises[dragState.exIndex]?.name}</span>
+          </div>
+          <button onClick={cancelDrag} className="text-cyan-400 hover:text-cyan-300 text-sm px-3 py-1 bg-cyan-900/50 rounded-lg">
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div
-        className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''}`}
+        className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'
@@ -578,10 +860,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onScroll={(e) => onScroll?.(e.target.scrollTop)}
       >
         {showPhases ? (
-          // Render with phase sections
+          // Render with phase sections - Bug #12: Show all phases for adding exercises
           Object.entries(EXERCISE_PHASES).map(([phaseKey, phaseInfo]) => {
-            const groups = groupedByPhase[phaseKey];
-            if (!groups || groups.length === 0) return null;
+            const groups = groupedByPhase[phaseKey] || [];
+            const isEmpty = groups.length === 0;
 
             const isCollapsed = collapsedPhases[phaseKey];
             const { completed, total } = getPhaseProgress(groups);
@@ -610,6 +892,29 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                 {!isCollapsed && (
                   <div className={`border-l-4 ${phaseInfo.borderColor} pl-3`}>
                     {groups.map((group, idx) => renderGroup(group, idx))}
+                    {/* Bug #11: Drop zone at end of phase when dragging */}
+                    {dragState && (
+                      <button
+                        onClick={() => {
+                          // Find the last exercise index in this phase
+                          const lastInPhase = activeWorkout.exercises.reduce((last, ex, idx) =>
+                            (ex.phase || 'workout') === phaseKey ? idx : last, -1);
+                          dropExercise(lastInPhase + 1, phaseKey);
+                        }}
+                        className="w-full mt-2 bg-cyan-900/20 border-2 border-dashed border-cyan-500/50 rounded-xl py-4 text-cyan-400 hover:bg-cyan-900/30 flex items-center justify-center gap-2 text-sm"
+                      >
+                        ↓ Drop at end of {phaseInfo.label}
+                      </button>
+                    )}
+                    {/* Bug #12: Add exercise button per phase */}
+                    {!dragState && (
+                      <button
+                        onClick={() => { setAddToPhase(phaseKey); setShowExerciseModal(true); }}
+                        className="w-full mt-2 bg-gray-900/50 border border-dashed border-gray-700 rounded-xl py-3 text-gray-500 hover:border-gray-600 hover:text-gray-400 flex items-center justify-center gap-2 text-sm"
+                      >
+                        <Icons.Plus /> Add to {phaseInfo.label}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -619,7 +924,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           // Render without phases (flat list with superset grouping)
           Object.values(groupedByPhase).flat().map((group, idx) => renderGroup(group, idx))
         )}
-        <button onClick={() => setShowExerciseModal(true)}
+        <button onClick={() => { setAddToPhase('workout'); setShowExerciseModal(true); }}
           className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-teal-600 hover:text-teal-400 flex items-center justify-center gap-2">
           <Icons.Plus /> Add Exercise
         </button>
@@ -764,8 +1069,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )
       )}
 
-      {/* Timer completion sound */}
-      <audio ref={timerAudioRef} src="/sounds/timer-complete.wav" preload="auto" />
+      {/* Timer uses vibration instead of audio to avoid pausing music (Bug #3 fix) */}
       </div>
     </div>
   );

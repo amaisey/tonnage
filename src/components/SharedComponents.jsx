@@ -270,10 +270,17 @@ const DurationPad = ({ value, onChange, onClose, onNext, fieldLabel }) => {
 };
 
 // Set Input Row Component with dual rest time display (elapsed + target)
+// Bug #13: Added swipe-to-delete functionality
 const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, lastGlobalCompletion, isFirstSetInWorkout }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const rowRef = useRef(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+
+  // Bug #13: Swipe to delete state
+  const [swipeX, setSwipeX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+  const DELETE_THRESHOLD = 80; // pixels to swipe to reveal delete
 
   // Scroll into view when this row becomes active - position well above numpad
   useEffect(() => {
@@ -391,6 +398,44 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
   // Determine if we should show the rest timer row
   const showRestRow = !isFirstSetInWorkout && lastGlobalCompletion;
 
+  // Bug #13: Touch handlers for swipe-to-delete
+  const handleTouchStart = (e) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    setIsSwiping(false);
+  };
+
+  const handleTouchMove = (e) => {
+    const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+
+    // Only swipe if horizontal movement is greater than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+      setIsSwiping(true);
+      // Only allow left swipe (negative deltaX), cap at DELETE_THRESHOLD
+      const newSwipeX = Math.max(-DELETE_THRESHOLD, Math.min(0, deltaX));
+      setSwipeX(newSwipeX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    // Snap to delete position or back to normal
+    if (swipeX < -DELETE_THRESHOLD / 2) {
+      setSwipeX(-DELETE_THRESHOLD);
+    } else {
+      setSwipeX(0);
+    }
+    setIsSwiping(false);
+  };
+
+  const handleDelete = () => {
+    setSwipeX(0);
+    onRemove?.();
+  };
+
+  const resetSwipe = () => {
+    setSwipeX(0);
+  };
+
   return (
     <>
       {/* Dual rest time indicator - Elapsed (left) | Target (right) */}
@@ -409,15 +454,37 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           <div className="flex-1 h-px bg-rose-700/30"></div>
         </div>
       )}
-      <div ref={rowRef} className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
-        <div className="text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
-        <div className="text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
-        {fields.length < 2 && <div></div>}
-        {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
-        {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
-        <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-          <Icons.Check />
-        </button>
+      {/* Bug #13: Swipeable container with delete button */}
+      <div className="relative overflow-hidden rounded-lg">
+        {/* Delete button (revealed on swipe) */}
+        <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center">
+          <button onClick={handleDelete} className="w-full h-full flex items-center justify-center text-white font-medium">
+            <Icons.Trash />
+          </button>
+        </div>
+        {/* Main row content */}
+        <div
+          ref={rowRef}
+          className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center p-2 ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'} relative z-10`}
+          style={{
+            transform: `translateX(${swipeX}px)`,
+            transition: isSwiping ? 'none' : 'transform 0.2s ease-out',
+            backgroundColor: set.completed ? 'rgb(34 197 94 / 0.2)' : 'rgb(31 41 55 / 0.5)'
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onClick={swipeX < 0 ? resetSwipe : undefined}
+        >
+          <div className="text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
+          <div className="text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
+          {fields.length < 2 && <div></div>}
+          {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
+          {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
+          <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+            <Icons.Check />
+          </button>
+        </div>
       </div>
     </>
   );
