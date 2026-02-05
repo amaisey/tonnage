@@ -389,11 +389,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
 
         {/* Set headers */}
-        <div className="grid grid-cols-[40px_1fr_1fr_50px_32px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
+        <div className="grid grid-cols-[40px_1fr_1fr_50px_40px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
           <span>Set</span>
           {CATEGORIES[exercise.category]?.fields.slice(0, 2).map(f => (
-            <span key={f}>{f === 'bandColor' ? 'Band' : f}</span>
+            <span key={f} className="text-center">{f === 'bandColor' ? 'Band' : f}</span>
           ))}
+          {CATEGORIES[exercise.category]?.fields.length < 2 && <span></span>}
           <span className="text-center">Prev</span>
           <span></span>
         </div>

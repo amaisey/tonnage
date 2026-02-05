@@ -220,19 +220,14 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           <div className="flex-1 h-px bg-rose-700/30"></div>
         </div>
       )}
-      <div ref={rowRef} className={`flex items-center gap-2 p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
-        <div className="w-7 text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
-        <div className="w-16 text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
-        {fields.map((field, idx) => renderInput(field, idx))}
-        {set.rpe && <span className="text-xs text-rose-400 font-medium w-6">{set.rpe}</span>}
-        <button onClick={onComplete} className={`p-2 rounded-lg ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+      <div ref={rowRef} className={`grid grid-cols-[40px_1fr_1fr_50px_40px] gap-1 items-center p-2 rounded-lg ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'}`}>
+        <div className="text-gray-300 font-medium text-sm text-center">{setIndex + 1}</div>
+        {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
+        {fields.length < 2 && <div></div>}
+        <div className="text-gray-400 text-xs text-center truncate">{formatPrevious()}</div>
+        <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
           <Icons.Check />
         </button>
-        {onRemove && (
-          <button onClick={onRemove} className="p-1 text-gray-500 hover:text-red-400">
-            <Icons.X />
-          </button>
-        )}
       </div>
     </>
   );
