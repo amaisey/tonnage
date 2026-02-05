@@ -2,7 +2,7 @@
 
 export const defaultFolders = [
   // Hybrid Athlete 3.0 - 12 Week Program
-  { id: 'hybrid-3.0', name: 'Hybrid Athlete 3.0', parentId: null },
+  { id: 'hybrid-3.0', name: 'Hybrid Athlete 3.0', parentId: 'root' },
   { id: 'hybrid-3.0-week-1', name: 'Week 1', parentId: 'hybrid-3.0' },
   { id: 'hybrid-3.0-week-2', name: 'Week 2', parentId: 'hybrid-3.0' },
   { id: 'hybrid-3.0-week-3', name: 'Week 3', parentId: 'hybrid-3.0' },
@@ -16,7 +16,7 @@ export const defaultFolders = [
   { id: 'hybrid-3.0-week-11', name: 'Week 11', parentId: 'hybrid-3.0' },
   { id: 'hybrid-3.0-week-12', name: 'Week 12', parentId: 'hybrid-3.0' },
   // Correcting Course
-  { id: 'correcting-course', name: 'Correcting Course', parentId: null },
+  { id: 'correcting-course', name: 'Correcting Course', parentId: 'root' },
   { id: 'cc-phase1', name: 'Phase 1', parentId: 'correcting-course' },
   { id: 'cc-p1-w1', name: 'Week 1', parentId: 'cc-phase1' },
   { id: 'cc-p1-w2', name: 'Week 2', parentId: 'cc-phase1' },

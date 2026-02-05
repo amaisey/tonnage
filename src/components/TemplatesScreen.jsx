@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
@@ -522,7 +522,7 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   );
 };
 
-const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises, onScroll, navVisible }) => {
+const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulkImport, onUpdateTemplate, onDeleteTemplate, onAddFolder, onBulkAddFolders, onDeleteFolder, onAddExercises, exercises, onScroll, navVisible, onModalStateChange }) => {
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [showImport, setShowImport] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
@@ -530,6 +530,12 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null);
   const [viewingTemplate, setViewingTemplate] = useState(null);
+
+  // Notify parent when any modal is open to hide navbar
+  useEffect(() => {
+    const anyModalOpen = showCreateTemplate || !!editingTemplate || !!viewingTemplate || showImport;
+    onModalStateChange?.(anyModalOpen);
+  }, [showCreateTemplate, editingTemplate, viewingTemplate, showImport, onModalStateChange]);
 
   const calculateEstimatedTime = (template) => {
     if (template.estimatedTime) return template.estimatedTime;
@@ -561,7 +567,14 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const currentFolder = folders.find(f => f.id === currentFolderId);
   // Filter out unwanted folders - artifacts from import or unused defaults
   const hiddenFolders = ['root', 'cardio', 'strength'];
-  const childFolders = folders.filter(f => f.parentId === currentFolderId && f.name && !hiddenFolders.includes(f.name.toLowerCase()));
+  // Handle both null and 'root' as root-level parentId for backwards compatibility
+  const isRootLevel = (parentId) => parentId === 'root' || parentId === null || parentId === undefined;
+  const childFolders = folders.filter(f => {
+    const matchesParent = currentFolderId === 'root'
+      ? isRootLevel(f.parentId)
+      : f.parentId === currentFolderId;
+    return matchesParent && f.name && !hiddenFolders.includes(f.name.toLowerCase());
+  });
   const folderTemplates = templates.filter(t => (t.folderId || 'root') === currentFolderId);
 
   const getBreadcrumbs = () => {

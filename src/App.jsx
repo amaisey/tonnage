@@ -25,6 +25,7 @@ function App() {
   const [isNumpadOpen, setIsNumpadOpen] = useState(false);
   const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
   const lastScrollY = useRef(0);
 
   // Reset navbar scroll state when there's no active workout (empty state shouldn't hide navbar)
@@ -154,7 +155,7 @@ function App() {
   ];
 
   // Hide navbar when numpad is open, scrolling down, or history modal is open
-  const shouldHideNavbar = isNumpadOpen || navbarHiddenByScroll || isHistoryModalOpen;
+  const shouldHideNavbar = isNumpadOpen || navbarHiddenByScroll || isHistoryModalOpen || isTemplatesModalOpen;
 
   return (
     <HistoryMigration>
@@ -198,6 +199,7 @@ function App() {
               exercises={exercises}
               onScroll={handleScroll}
               navVisible={!shouldHideNavbar}
+              onModalStateChange={setIsTemplatesModalOpen}
             />
           )}
           {activeTab === 'history' && (
