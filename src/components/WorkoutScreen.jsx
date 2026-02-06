@@ -26,6 +26,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const intervalRef = useRef(null);
   const restTimeRef = useRef(null);
   const wakeLockRef = useRef(null);
+  const supersetColorMap = useRef({}); // Bug #13: Track superset color assignments
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -831,9 +832,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   const groupedByPhase = getGroupedExercisesByPhase();
   const showPhases = hasPhases();
-
-  // Bug #13: Track superset color assignments
-  const supersetColorMap = useRef({});
 
   // Helper to get a consistent color index for a superset group
   const getSupersetColor = (supersetId) => {
