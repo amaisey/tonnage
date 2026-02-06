@@ -41,6 +41,16 @@ export const EXERCISE_PHASES = {
   cooldown: { label: 'Cool Down', color: 'bg-teal-500', textColor: 'text-teal-400', borderColor: 'border-teal-500/50', icon: '🧊', order: 3 },
 };
 
+// Superset group colors - used to visually distinguish separate superset groups
+export const SUPERSET_COLORS = [
+  { border: 'border-teal-500', bg: 'bg-teal-500', text: 'text-teal-400', dot: 'bg-teal-500' },
+  { border: 'border-violet-500', bg: 'bg-violet-500', text: 'text-violet-400', dot: 'bg-violet-500' },
+  { border: 'border-amber-500', bg: 'bg-amber-500', text: 'text-amber-400', dot: 'bg-amber-500' },
+  { border: 'border-sky-500', bg: 'bg-sky-500', text: 'text-sky-400', dot: 'bg-sky-500' },
+  { border: 'border-rose-400', bg: 'bg-rose-400', text: 'text-rose-400', dot: 'bg-rose-400' },
+  { border: 'border-lime-500', bg: 'bg-lime-500', text: 'text-lime-400', dot: 'bg-lime-500' },
+];
+
 // RPE descriptions
 export const RPE_DESCRIPTIONS = {
   6: 'Could do 4+ more reps',

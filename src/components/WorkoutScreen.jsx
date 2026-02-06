@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
-import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES } from '../data/constants';
+import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES, SUPERSET_COLORS } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
@@ -17,6 +17,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [addToPhase, setAddToPhase] = useState(null); // Bug #12: target phase for adding exercises
   // Bug #11: Drag to reorder state
   const [dragState, setDragState] = useState(null); // { exIndex, phase, touchY }
+  // Timer system state (#2, #3, #7, #8, #10, #15)
+  const [expectedNext, setExpectedNext] = useState(null); // { exIndex, setIndex } - the next set the timer is anchored to
+  const [lastCompletionTimestamp, setLastCompletionTimestamp] = useState(null); // single source of truth for timing
+  const [frozenElapsed, setFrozenElapsed] = useState({}); // { 'exIndex-setIndex': seconds } - frozen timers for skipped sets
+  const [restTimerMinimized, setRestTimerMinimized] = useState(false); // Bug #6: minimize rest timer banner
   const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
   const restTimeRef = useRef(null);
@@ -101,22 +106,114 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return null;
   };
 
+  // Bug #7: Timestamp-based rest timer - derive remaining time from startedAt + totalTime
   useEffect(() => {
-    if (restTimer.active && restTimer.time > 0) {
-      intervalRef.current = setInterval(() => setRestTimer(prev => ({ ...prev, time: prev.time - 1 })), 1000);
-    } else if (restTimer.time === 0 && restTimer.active) {
-      // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200, 100, 300]); // Pattern: short-pause-short-pause-long
+    if (!restTimer.active || !restTimer.startedAt) return;
+
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
+      const remaining = Math.max(0, restTimer.totalTime - elapsed);
+      if (remaining === 0) {
+        // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
+        if (navigator.vibrate) {
+          navigator.vibrate([200, 100, 200, 100, 300]);
+        }
+        setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
+        return;
       }
-      setRestTimer(prev => ({ ...prev, active: false }));
-    }
+      setRestTimer(prev => ({ ...prev, time: remaining }));
+    };
+
+    tick();
+    intervalRef.current = setInterval(tick, 1000);
     return () => clearInterval(intervalRef.current);
-  }, [restTimer.active, restTimer.time]);
+  }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
   const startRestTimer = (exerciseName, restTime) => {
     const time = restTime || 90;
-    setRestTimer({ active: true, time, totalTime: time, exerciseName });
+    setRestTimer({ active: true, time, totalTime: time, startedAt: Date.now(), exerciseName });
+    setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
+  };
+
+  // Bug #8: Calculate the next expected set (superset-aware)
+  const calculateNextExpected = (justCompletedExIndex, justCompletedSetIndex) => {
+    const exercises = activeWorkout.exercises;
+    const justCompleted = exercises[justCompletedExIndex];
+
+    // If in a superset, navigate within the superset first
+    if (justCompleted.supersetId) {
+      const supersetExercises = exercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => ex.supersetId === justCompleted.supersetId);
+
+      const posInSuperset = supersetExercises.findIndex(({ idx }) => idx === justCompletedExIndex);
+
+      if (posInSuperset < supersetExercises.length - 1) {
+        // Next exercise in superset (same round)
+        const nextInSuperset = supersetExercises[posInSuperset + 1];
+        const nextSetIdx = nextInSuperset.ex.sets.findIndex(s => !s.completed);
+        if (nextSetIdx >= 0) {
+          return { exIndex: nextInSuperset.idx, setIndex: nextSetIdx };
+        }
+      } else {
+        // Last in superset - loop back to first (next round)
+        const firstInSuperset = supersetExercises[0];
+        const nextSetIdx = firstInSuperset.ex.sets.findIndex(s => !s.completed);
+        if (nextSetIdx >= 0) {
+          return { exIndex: firstInSuperset.idx, setIndex: nextSetIdx };
+        }
+      }
+    }
+
+    // Not in superset, or superset fully complete: next incomplete set of same exercise
+    const nextSetInSameEx = justCompleted.sets.findIndex((s, idx) => idx > justCompletedSetIndex && !s.completed);
+    if (nextSetInSameEx >= 0) {
+      return { exIndex: justCompletedExIndex, setIndex: nextSetInSameEx };
+    }
+
+    // All sets done for this exercise - find next exercise with incomplete sets
+    for (let i = justCompletedExIndex + 1; i < exercises.length; i++) {
+      const nextSetIdx = exercises[i].sets.findIndex(s => !s.completed);
+      if (nextSetIdx >= 0) {
+        return { exIndex: i, setIndex: nextSetIdx };
+      }
+    }
+
+    return null; // All done
+  };
+
+  // Bug #15: Determine if rest timer should fire (no timer within supersets)
+  const shouldStartRestTimer = (justCompletedExIndex, nextExp) => {
+    if (!nextExp) return false;
+    const exercises = activeWorkout.exercises;
+    const justCompleted = exercises[justCompletedExIndex];
+    const nextExercise = exercises[nextExp.exIndex];
+
+    // If both in same superset, check if we're looping back (new round) or moving forward
+    if (justCompleted.supersetId && nextExercise.supersetId &&
+        justCompleted.supersetId === nextExercise.supersetId) {
+      const supersetExercises = exercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => ex.supersetId === justCompleted.supersetId);
+      const currentPos = supersetExercises.findIndex(({ idx }) => idx === justCompletedExIndex);
+      const nextPos = supersetExercises.findIndex(({ idx }) => idx === nextExp.exIndex);
+      // Moving forward in superset = no rest timer. Looping back = rest timer.
+      return nextPos <= currentPos;
+    }
+
+    return true; // Different exercises / not in superset = rest timer
+  };
+
+  // Bug #2: Get the rest time that should display above a given exercise/set
+  // For set 0 of an exercise, use the PREVIOUS exercise's rest time
+  const getDisplayRestTime = (exIndex, setIndex) => {
+    const exercise = activeWorkout.exercises[exIndex];
+    if (setIndex > 0) return exercise.restTime || 90;
+    // Set 0: find the previous exercise's rest time
+    if (exIndex > 0) {
+      return activeWorkout.exercises[exIndex - 1].restTime || 90;
+    }
+    return exercise.restTime || 90;
   };
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
@@ -254,19 +351,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       set.completedAt = now;
 
       // Bug #10: Check for rapid completions and redistribute time
-      // Find all sets completed in the last RAPID_COMPLETION_THRESHOLD ms
       const recentCompletions = [];
-      let anchorTime = null; // The completion time before the rapid batch
+      let anchorTime = null;
 
       updated.exercises.forEach((ex, eIdx) => {
         ex.sets?.forEach((s, sIdx) => {
           if (s.completed && s.completedAt) {
             const timeDiff = now - s.completedAt;
             if (timeDiff <= RAPID_COMPLETION_THRESHOLD && timeDiff > 0) {
-              // This set was completed recently (within threshold)
               recentCompletions.push({ exIndex: eIdx, setIndex: sIdx, completedAt: s.completedAt });
             } else if (timeDiff > RAPID_COMPLETION_THRESHOLD) {
-              // This is a potential anchor (completed before the rapid batch)
               if (!anchorTime || s.completedAt > anchorTime) {
                 anchorTime = s.completedAt;
               }
@@ -275,23 +369,51 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         });
       });
 
-      // If we have multiple rapid completions, redistribute the time
       if (recentCompletions.length >= 1 && anchorTime) {
         const totalTime = now - anchorTime;
-        const numSets = recentCompletions.length + 1; // +1 for current set
+        const numSets = recentCompletions.length + 1;
         const timePerSet = Math.round(totalTime / numSets);
-
-        // Redistribute timestamps evenly
         recentCompletions.sort((a, b) => a.completedAt - b.completedAt);
         recentCompletions.forEach((comp, idx) => {
           const newTime = anchorTime + (timePerSet * (idx + 1));
           updated.exercises[comp.exIndex].sets[comp.setIndex].completedAt = newTime;
         });
-        // Set current completion to the final slot
         set.completedAt = anchorTime + (timePerSet * numSets);
       }
 
-      startRestTimer(exercise.name, exercise.restTime || 90);
+      // Bug #3/#10: If user completed a set that wasn't the expected next, freeze the skipped timer
+      if (expectedNext &&
+          (expectedNext.exIndex !== exIndex || expectedNext.setIndex !== setIndex) &&
+          lastCompletionTimestamp) {
+        const elapsedSinceLastCompletion = Math.round((now - lastCompletionTimestamp) / 1000);
+        setFrozenElapsed(prev => ({
+          ...prev,
+          [`${expectedNext.exIndex}-${expectedNext.setIndex}`]: elapsedSinceLastCompletion
+        }));
+      }
+
+      // Calculate the next expected set from what was just completed
+      const newExpected = calculateNextExpected(exIndex, setIndex);
+      setExpectedNext(newExpected);
+      setLastCompletionTimestamp(now);
+
+      // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
+      if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
+        // Bug #2: Use the just-completed exercise's rest time for the timer
+        startRestTimer(exercise.name, exercise.restTime || 90);
+      } else if (restTimer.active) {
+        // Within superset - cancel any active rest timer
+        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
+      }
+    } else {
+      // Uncompleting a set - recalculate expected next
+      set.completedAt = undefined;
+      // Clear frozen elapsed for this set if it was frozen
+      setFrozenElapsed(prev => {
+        const copy = { ...prev };
+        delete copy[`${exIndex}-${setIndex}`];
+        return copy;
+      });
     }
     setActiveWorkout(updated);
   };
@@ -443,54 +565,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return activeWorkout?.exercises?.some(ex => ex.phase && ex.phase !== 'workout');
   };
 
-  // Calculate the most recent completed set timestamp across ALL exercises
-  const getLastGlobalCompletion = () => {
-    if (!activeWorkout?.exercises) return null;
-    let lastCompletion = null;
-    activeWorkout.exercises.forEach(ex => {
-      ex.sets?.forEach(set => {
-        if (set.completed && set.completedAt) {
-          if (!lastCompletion || set.completedAt > lastCompletion) {
-            lastCompletion = set.completedAt;
-          }
-        }
-      });
-    });
-    return lastCompletion;
+  // Bug #3: Check if a given set position is the next expected set
+  const isNextExpectedSet = (exIndex, setIndex) => {
+    return expectedNext && expectedNext.exIndex === exIndex && expectedNext.setIndex === setIndex;
   };
 
-  // Get the completion timestamp that was "current" when a specific set was completed
-  // (i.e., the most recent completion BEFORE this set was completed)
-  const getCompletionBeforeSet = (targetExIndex, targetSetIndex) => {
-    if (!activeWorkout?.exercises) return null;
-    const targetSet = activeWorkout.exercises[targetExIndex]?.sets?.[targetSetIndex];
-    if (!targetSet?.completedAt) return getLastGlobalCompletion(); // For incomplete sets, use current last
-
-    let lastBefore = null;
-    activeWorkout.exercises.forEach((ex, exIdx) => {
-      ex.sets?.forEach((set, setIdx) => {
-        if (set.completed && set.completedAt && set.completedAt < targetSet.completedAt) {
-          if (!lastBefore || set.completedAt > lastBefore) {
-            lastBefore = set.completedAt;
-          }
-        }
-      });
-    });
-    return lastBefore;
-  };
-
-  // Check if this is the first set in the entire workout (no sets before it)
-  const isFirstSetInWorkout = (exIndex, setIndex) => {
-    // Check all sets before this one
-    for (let e = 0; e < activeWorkout.exercises.length; e++) {
-      const maxSet = e === exIndex ? setIndex : activeWorkout.exercises[e].sets.length;
-      for (let s = 0; s < maxSet; s++) {
-        if (e < exIndex || (e === exIndex && s < setIndex)) {
-          return false; // There's at least one set before this one
-        }
-      }
-    }
-    return setIndex === 0 && exIndex === 0;
+  // Get frozen elapsed time for a skipped set (if any)
+  const getFrozenElapsed = (exIndex, setIndex) => {
+    return frozenElapsed[`${exIndex}-${setIndex}`] || null;
   };
 
   // Bug #15: Calculate pace tracking
@@ -570,7 +652,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
-  const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true) => {
+  const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true, supersetColorDot = null) => {
     const exerciseRestTime = exercise.restTime || 90;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
     const phaseInfo = exercise.phase && exercise.phase !== 'workout' ? EXERCISE_PHASES[exercise.phase] : null;
@@ -598,7 +680,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
 
     return (
-      <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} bg-white/10 backdrop-blur-md border border-white/20 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-4'}`}>
+      <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : 'p-4 rounded-2xl mb-4'}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {/* Bug #11: Drag handle */}
@@ -612,7 +694,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               </button>
             )}
             {isSuperset && (
-              <div className="w-1 h-8 bg-teal-500 rounded-full" />
+              <div className={`w-1 h-8 rounded-full ${supersetColorDot || 'bg-teal-500'}`} />
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -631,8 +713,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)} className="text-xs text-gray-400 px-2 py-1 rounded hover:bg-white/10">
               ⏱️ {formatDuration(exerciseRestTime)}
             </button>
-            {/* Link button - show if there's a next exercise and this is the last in its group */}
-            {exIndex < activeWorkout.exercises.length - 1 && (!isSuperset || isLast) && (
+            {/* Link button - show if there's a next exercise in the same phase and this is the last in its group */}
+            {(() => {
+              const currentPhase = exercise.phase || 'workout';
+              const hasNextInPhase = activeWorkout.exercises.some((ex, idx) => idx > exIndex && (ex.phase || 'workout') === currentPhase);
+              return hasNextInPhase && (!isSuperset || isLast);
+            })() && (
               <button
                 onClick={() => linkWithNext(exIndex)}
                 className="text-teal-400 hover:text-teal-300 p-1 hover:bg-white/10 rounded"
@@ -724,15 +810,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           <SetInputRow key={setIndex} set={set} setIndex={setIndex} category={exercise.category}
             previousSet={setIndex > 0 ? exercise.sets[setIndex - 1] : null}
             previousWorkoutSet={exercise.previousSets?.[setIndex] || null}
-            restTime={exerciseRestTime}
+            restTime={getDisplayRestTime(exIndex, setIndex)}
             onUpdate={(field, value) => updateSet(exIndex, setIndex, field, value)}
             onComplete={() => toggleSetComplete(exIndex, setIndex)}
             onRemove={exercise.sets.length > 1 ? () => removeSet(exIndex, setIndex) : null}
             onOpenNumpad={(sIdx, field, fIdx) => openNumpad(exIndex, sIdx, field, fIdx)}
             onOpenBandPicker={(color) => openBandPicker(exIndex, setIndex, color)}
             activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null}
-            lastGlobalCompletion={set.completed ? getCompletionBeforeSet(exIndex, setIndex) : getLastGlobalCompletion()}
-            isFirstSetInWorkout={isFirstSetInWorkout(exIndex, setIndex)} />
+            isNextExpected={isNextExpectedSet(exIndex, setIndex)}
+            lastCompletionTimestamp={lastCompletionTimestamp}
+            frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
@@ -745,18 +832,31 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const groupedByPhase = getGroupedExercisesByPhase();
   const showPhases = hasPhases();
 
+  // Bug #13: Track superset color assignments
+  const supersetColorMap = useRef({});
+
+  // Helper to get a consistent color index for a superset group
+  const getSupersetColor = (supersetId) => {
+    if (!supersetColorMap.current[supersetId]) {
+      const usedCount = Object.keys(supersetColorMap.current).length;
+      supersetColorMap.current[supersetId] = SUPERSET_COLORS[usedCount % SUPERSET_COLORS.length];
+    }
+    return supersetColorMap.current[supersetId];
+  };
+
   // Helper to render a group (superset or single)
   const renderGroup = (group, groupIdx) => {
     if (group.type === 'superset') {
+      const color = getSupersetColor(group.supersetId);
       return (
         <div key={group.supersetId} className="mb-4">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-1">
             <Icons.Link />
-            <span className="text-xs font-medium text-teal-400 uppercase tracking-wide">Superset</span>
+            <span className={`text-xs font-medium ${color.text} uppercase tracking-wide`}>Superset</span>
           </div>
-          <div className="border-l-4 border-teal-500 rounded-2xl overflow-hidden">
+          <div className={`border-l-4 ${color.border} rounded-2xl overflow-hidden`}>
             {group.exercises.map(({ exercise, index }, i) =>
-              renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1)
+              renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1, color.dot)
             )}
           </div>
         </div>
@@ -796,9 +896,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full overflow-hidden">
-      <RestTimerBanner isActive={restTimer.active} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
-        exerciseName={restTimer.exerciseName} onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, exerciseName: '' })}
-        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, time: Math.max(0, prev.time + delta), totalTime: Math.max(prev.totalTime, prev.time + delta) }))} />
+      <RestTimerBanner isActive={restTimer.active && !restTimerMinimized} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
+        exerciseName={restTimer.exerciseName}
+        onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' })}
+        onMinimize={() => setRestTimerMinimized(true)}
+        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))} />
 
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">
@@ -1046,9 +1148,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       )}
 
       {/* Number Pad / Duration Pad */}
+      {/* Bug #11: key forces re-mount when switching sets, resetting hasEdited state */}
       {numpadState && activeWorkout && (
         numpadState.field === 'duration' ? (
           <DurationPad
+            key={`${numpadState.exIndex}-${numpadState.setIndex}-${numpadState.field}`}
             value={String(activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.[numpadState.field] || '')}
             onChange={handleNumpadChange}
             onClose={closeNumpad}
@@ -1057,6 +1161,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           />
         ) : (
           <NumberPad
+            key={`${numpadState.exIndex}-${numpadState.setIndex}-${numpadState.field}`}
             value={String(activeWorkout.exercises[numpadState.exIndex]?.sets[numpadState.setIndex]?.[numpadState.field] || '')}
             onChange={handleNumpadChange}
             onClose={closeNumpad}

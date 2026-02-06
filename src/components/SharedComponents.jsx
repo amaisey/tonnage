@@ -271,7 +271,8 @@ const DurationPad = ({ value, onChange, onClose, onNext, fieldLabel }) => {
 
 // Set Input Row Component with dual rest time display (elapsed + target)
 // Bug #13: Added swipe-to-delete functionality
-const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, lastGlobalCompletion, isFirstSetInWorkout }) => {
+// Bug #3: Only shows timer if isNextExpected or has frozenElapsed
+const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, isNextExpected, lastCompletionTimestamp, frozenElapsed }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const rowRef = useRef(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -285,48 +286,44 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
   // Scroll into view when this row becomes active - position well above numpad
   useEffect(() => {
     if (activeField && rowRef.current) {
-      // Use a delay to ensure layout is complete, then scroll with offset to stay above numpad
       setTimeout(() => {
         const element = rowRef.current;
         if (!element) return;
         const container = element.closest('[style*="overflow"]') || element.parentElement?.parentElement?.parentElement;
         if (container) {
-          // Calculate position to put element in upper portion of visible area (above numpad)
           const elementRect = element.getBoundingClientRect();
           const containerRect = container.getBoundingClientRect();
           const scrollTop = container.scrollTop;
-          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - 120; // 120px from top
+          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - 120;
           container.scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
         }
       }, 50);
     }
   }, [activeField]);
 
-  // Live elapsed time counter - counts up from last global completion
+  // Bug #3/#7: Timer only runs on the next expected set, derived from single timestamp
   useEffect(() => {
-    // If this set is completed, freeze the elapsed time at the moment it was completed
-    if (set.completed && set.completedAt && lastGlobalCompletion) {
-      const frozenElapsed = Math.round((set.completedAt - lastGlobalCompletion) / 1000);
-      setElapsedTime(Math.max(0, frozenElapsed));
+    // If this set has a frozen elapsed value (it was skipped), show that
+    if (frozenElapsed !== null && frozenElapsed !== undefined) {
+      setElapsedTime(frozenElapsed);
       return;
     }
 
-    // If no previous completion exists, don't show timer
-    if (!lastGlobalCompletion) {
+    // Only the next expected set gets a live timer
+    if (!isNextExpected || !lastCompletionTimestamp) {
       setElapsedTime(0);
       return;
     }
 
-    // Live countdown - update every second
     const updateElapsed = () => {
-      const elapsed = Math.round((Date.now() - lastGlobalCompletion) / 1000);
+      const elapsed = Math.round((Date.now() - lastCompletionTimestamp) / 1000);
       setElapsedTime(elapsed);
     };
 
     updateElapsed();
     const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [lastGlobalCompletion, set.completed, set.completedAt]);
+  }, [isNextExpected, lastCompletionTimestamp, frozenElapsed]);
 
   const renderInput = (field, fieldIndex) => {
     const isActive = activeField === field;
@@ -386,17 +383,8 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     }
   };
 
-  // Calculate rest time from previous set
-  const getRestFromPrevious = () => {
-    if (!previousSet?.completedAt || !set.completedAt) return null;
-    const restSeconds = Math.round((set.completedAt - previousSet.completedAt) / 1000);
-    return restSeconds > 0 ? restSeconds : null;
-  };
-
-  const actualRest = getRestFromPrevious();
-
-  // Determine if we should show the rest timer row
-  const showRestRow = !isFirstSetInWorkout && lastGlobalCompletion;
+  // Bug #3: Only show the rest timer row if this is the next expected set OR has a frozen timer
+  const showRestRow = isNextExpected || (frozenElapsed !== null && frozenElapsed !== undefined);
 
   // Bug #13: Touch handlers for swipe-to-delete
   const handleTouchStart = (e) => {
@@ -456,12 +444,14 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       )}
       {/* Bug #13: Swipeable container with delete button */}
       <div className="relative overflow-hidden rounded-lg">
-        {/* Delete button (revealed on swipe) */}
-        <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center">
-          <button onClick={handleDelete} className="w-full h-full flex items-center justify-center text-white font-medium">
-            <Icons.Trash />
-          </button>
-        </div>
+        {/* Delete button (revealed on swipe) - only visible when swiping */}
+        {swipeX < 0 && (
+          <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center">
+            <button onClick={handleDelete} className="w-full h-full flex items-center justify-center text-white font-medium">
+              <Icons.Trash />
+            </button>
+          </div>
+        )}
         {/* Main row content */}
         <div
           ref={rowRef}
@@ -776,7 +766,8 @@ const TimerScreen = () => {
 };
 
 // Rest Timer Banner - shows during rest periods
-const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime, exerciseName }) => {
+// Bug #6: Added minimize option
+const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime, onMinimize, exerciseName }) => {
   if (!isActive) return null;
 
   const progress = timeRemaining / totalTime;
@@ -790,7 +781,14 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
             <Icons.TimerSmall />
             <span className="text-sm font-medium">Rest Timer</span>
           </div>
-          <span className="text-white/80 text-xs">{exerciseName}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-white/80 text-xs">{exerciseName}</span>
+            {onMinimize && (
+              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-1" title="Minimize">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex-1">

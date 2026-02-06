@@ -63,6 +63,20 @@ function App() {
 
   // Start a workout from a template
   const startTemplate = useCallback(async (template) => {
+    // Bug #4: Auto-add template exercises not in library
+    const exerciseNames = new Set(exercises.map(e => e.name));
+    const newExercises = template.exercises
+      .filter(ex => !exerciseNames.has(ex.name))
+      .map((ex, i) => ({
+        id: Date.now() + i,
+        name: ex.name,
+        bodyPart: ex.bodyPart,
+        category: ex.category
+      }));
+    if (newExercises.length > 0) {
+      setExercises(prev => [...prev, ...newExercises]);
+    }
+
     // Fetch previous data for all exercises in parallel
     const exercisesWithPrevData = await Promise.all(
       template.exercises.map(async (ex) => {
@@ -91,7 +105,7 @@ function App() {
       startTime: Date.now()
     });
     setActiveTab('workout');
-  }, [getPreviousData]);
+  }, [getPreviousData, exercises, setExercises]);
 
   const cancelWorkout = () => {
     setActiveWorkout(null);
