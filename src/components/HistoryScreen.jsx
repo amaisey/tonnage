@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, BAND_COLORS, EXERCISE_PHASES } from '../data/constants';
-import { formatDuration, exportWorkoutJSON } from '../utils/helpers';
+import { formatDuration, exportWorkoutJSON, generateStravaDescription } from '../utils/helpers';
 import { workoutDb } from '../db/workoutDb';
 
 // Workout Detail Modal - shows full workout when clicking on history item
 const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [stravaCopied, setStravaCopied] = useState(false);
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -213,14 +214,27 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
         })}
       </div>
 
-      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
+      <div className="shrink-0 p-4 border-t border-gray-800 bg-gray-900 space-y-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
+        {/* Bug #8: Strava Description Export */}
+        <button onClick={async () => {
+          const stravaText = generateStravaDescription(workout);
+          await navigator.clipboard.writeText(stravaText);
+          setStravaCopied(true);
+          setTimeout(() => setStravaCopied(false), 2000);
+        }} className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
+          stravaCopied
+            ? 'bg-green-600 text-white'
+            : 'bg-orange-600 text-white hover:bg-orange-700'
+        }`}>
+          {stravaCopied ? '✓ Copied!' : '🏃 Copy Strava Description'}
+        </button>
+
         <button onClick={async () => {
           await navigator.clipboard.writeText(exportWorkoutJSON(workout));
-          // Visual feedback
           const btn = document.activeElement;
           btn.textContent = '✓ Copied!';
           setTimeout(() => {
-            btn.innerHTML = '<span class="flex items-center justify-center gap-2">Export Copy Workout JSON</span>';
+            btn.innerHTML = '<span class="flex items-center justify-center gap-2">Copy Workout JSON</span>';
           }, 1500);
         }} className="w-full bg-teal-600 text-white py-3 rounded-xl font-medium hover:bg-teal-700 flex items-center justify-center gap-2">
           <Icons.Export /> Copy Workout JSON

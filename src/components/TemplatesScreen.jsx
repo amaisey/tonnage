@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
@@ -215,6 +215,68 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
   const [selectedForSuperset, setSelectedForSuperset] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
   const [expandedExercise, setExpandedExercise] = useState(null); // index of expanded exercise
+  // Bug #9: Drag-to-reorder for template exercises
+  const [dragTouch, setDragTouch] = useState(null);
+  const longPressTimerRef = useRef(null);
+  const dragRefsTemplate = useRef({});
+
+  const handleTemplateTouchStart = (exIndex, e) => {
+    const touch = e.touches[0];
+    const timer = setTimeout(() => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      setDragTouch({ exIndex, startY: touch.clientY, currentY: touch.clientY, insertBefore: null });
+    }, 500);
+    timer._startX = touch.clientX;
+    timer._startY = touch.clientY;
+    longPressTimerRef.current = timer;
+  };
+
+  const handleTemplateTouchMove = (e) => {
+    if (!dragTouch) {
+      if (longPressTimerRef.current) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - (longPressTimerRef.current._startX || 0);
+        const dy = touch.clientY - (longPressTimerRef.current._startY || 0);
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          clearTimeout(longPressTimerRef.current);
+        }
+      }
+      return;
+    }
+    e.preventDefault();
+    const touch = e.touches[0];
+    let insertBefore = null;
+    const entries = Object.entries(dragRefsTemplate.current)
+      .filter(([, el]) => el)
+      .sort(([a], [b]) => parseInt(a) - parseInt(b));
+    for (const [idx, el] of entries) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (touch.clientY < midY && parseInt(idx) !== dragTouch.exIndex) {
+        insertBefore = parseInt(idx);
+        break;
+      }
+    }
+    if (insertBefore === null && entries.length > 0) {
+      const lastIdx = parseInt(entries[entries.length - 1][0]);
+      if (lastIdx !== dragTouch.exIndex) insertBefore = lastIdx + 1;
+    }
+    setDragTouch(prev => ({ ...prev, currentY: touch.clientY, insertBefore }));
+  };
+
+  const handleTemplateTouchEnd = () => {
+    clearTimeout(longPressTimerRef.current);
+    if (dragTouch && dragTouch.insertBefore !== null && dragTouch.insertBefore !== dragTouch.exIndex) {
+      const fromIndex = dragTouch.exIndex;
+      let toIndex = dragTouch.insertBefore;
+      if (fromIndex < toIndex) toIndex--;
+      const updated = [...exercises];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      setExercises(updated);
+    }
+    setDragTouch(null);
+  };
 
   const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
@@ -333,14 +395,26 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
     const fields = CATEGORIES[exercise.category]?.fields || ['weight', 'reps'];
 
     return (
+      <div key={index}>
+        {/* Bug #9: Drag insertion indicator */}
+        {dragTouch && dragTouch.insertBefore === index && dragTouch.exIndex !== index && (
+          <div className="h-1 bg-cyan-400 rounded-full mx-2 mb-1 shadow-lg shadow-cyan-400/50 animate-pulse" />
+        )}
       <div
-        key={index}
+        ref={el => dragRefsTemplate.current[index] = el}
+        onTouchStart={(e) => !selectMode && handleTemplateTouchStart(index, e)}
+        onTouchMove={handleTemplateTouchMove}
+        onTouchEnd={handleTemplateTouchEnd}
         onClick={() => selectMode && toggleSelectForSuperset(index)}
-        className={`${isSelected ? 'ring-2 ring-teal-500' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''}`}
+        className={`${isSelected ? 'ring-2 ring-teal-500' : ''} ${dragTouch?.exIndex === index ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-gray-900 p-4 ${isSuperset ? (isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : '') : 'rounded-2xl mb-3'} ${selectMode ? 'cursor-pointer' : ''} transition-transform`}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
+            {/* Bug #9: Grip handle for drag hint */}
+            {!selectMode && (
+              <span className="text-gray-500 touch-none"><Icons.GripVertical /></span>
+            )}
             {isSuperset && <div className="w-1 h-8 bg-teal-500 rounded-full" />}
             {selectMode && (
               <div className={`w-5 h-5 rounded-full border-2 ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-gray-600'} flex items-center justify-center`}>
@@ -451,6 +525,11 @@ const EditTemplateModal = ({ template, onSave, onDelete, onClose, allExercises }
           </div>
         )}
       </div>
+      {/* Bug #9: Drag insertion indicator after last card */}
+      {dragTouch && dragTouch.insertBefore === index + 1 && dragTouch.exIndex !== index && (
+        <div className="h-1 bg-cyan-400 rounded-full mx-2 mt-1 shadow-lg shadow-cyan-400/50 animate-pulse" />
+      )}
+      </div>
     );
   };
 
@@ -546,6 +625,10 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteFolderConfirm, setDeleteFolderConfirm] = useState(null);
   const [viewingTemplate, setViewingTemplate] = useState(null);
+  // Bug #10: Swipe-to-delete state for folders
+  const [swipedFolder, setSwipedFolder] = useState(null);
+  const folderTouchRef = useRef({ x: 0, y: 0, swiping: false });
+  const DELETE_THRESHOLD = 80;
 
   // Notify parent when any modal is open to hide navbar
   useEffect(() => {
@@ -637,19 +720,55 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, onImport, onBulk
             const isEmpty = totalTemplateCount === 0 && allSubfolderIds.length === 0;
 
             return (
-              <button key={folder.id} onClick={() => setCurrentFolderId(folder.id)}
-                className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl mb-2 hover:bg-white/15 active:bg-white/20 group border border-white/20 cursor-pointer text-left">
-                <span className="text-teal-400"><Icons.Folder /></span>
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-white block">{folder.name}</span>
-                  <div className="text-xs text-gray-500">
-                    {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
-                  </div>
+              <div key={folder.id} className="relative overflow-hidden rounded-xl mb-2">
+                {/* Bug #10: Delete zone revealed on swipe */}
+                <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center rounded-r-xl"
+                  style={{ opacity: swipedFolder === folder.id ? 1 : 0, transition: 'opacity 0.2s' }}>
+                  <button onClick={() => {
+                    if (isEmpty) {
+                      onDeleteFolder(folder.id);
+                    } else {
+                      setDeleteFolderConfirm({ folder, subfolderIds: allSubfolderIds, templateCount: totalTemplateCount, folderCount: allSubfolderIds.length });
+                    }
+                    setSwipedFolder(null);
+                  }} className="p-3 text-white">
+                    <Icons.Trash />
+                  </button>
                 </div>
-                <span onClick={(e) => { e.stopPropagation(); isEmpty ? onDeleteFolder(folder.id) : setDeleteFolderConfirm({ folder, subfolderIds: allSubfolderIds, templateCount: totalTemplateCount, folderCount: allSubfolderIds.length }); }}
-                  className="p-2 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash /></span>
-                <span className="text-teal-500/70"><Icons.ChevronRight /></span>
-              </button>
+
+                {/* Folder button — slides left on swipe */}
+                <button
+                  onClick={() => swipedFolder === folder.id ? setSwipedFolder(null) : setCurrentFolderId(folder.id)}
+                  onTouchStart={(e) => {
+                    folderTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, swiping: false };
+                  }}
+                  onTouchMove={(e) => {
+                    const deltaX = e.touches[0].clientX - folderTouchRef.current.x;
+                    const deltaY = Math.abs(e.touches[0].clientY - folderTouchRef.current.y);
+                    // Only swipe horizontally, not if scrolling vertically
+                    if (deltaY > 20 && !folderTouchRef.current.swiping) return;
+                    if (deltaX < -(DELETE_THRESHOLD / 2)) {
+                      folderTouchRef.current.swiping = true;
+                      setSwipedFolder(folder.id);
+                    } else if (deltaX > 20 && swipedFolder === folder.id) {
+                      setSwipedFolder(null);
+                    }
+                  }}
+                  style={{
+                    transform: swipedFolder === folder.id ? `translateX(-${DELETE_THRESHOLD}px)` : 'translateX(0)',
+                    transition: 'transform 0.2s ease-out'
+                  }}
+                  className="w-full flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl active:bg-white/20 border border-white/20 cursor-pointer text-left relative z-10">
+                  <span className="text-teal-400"><Icons.Folder /></span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-white block">{folder.name}</span>
+                    <div className="text-xs text-gray-500">
+                      {allSubfolderIds.length > 0 ? `${allSubfolderIds.length} folder${allSubfolderIds.length !== 1 ? 's' : ''}, ` : ''}{totalTemplateCount} template{totalTemplateCount !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <span className="text-teal-500/70"><Icons.ChevronRight /></span>
+                </button>
+              </div>
             );
           })}
 

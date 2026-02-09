@@ -26,6 +26,8 @@ function App() {
   const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  // Bug #3: Compact mode
+  const [compactMode, setCompactMode] = useLocalStorage('compactMode', false);
   const lastScrollY = useRef(0);
 
   // Reset navbar and numpad state when there's no active workout (empty state shouldn't hide navbar)
@@ -191,6 +193,7 @@ function App() {
               getPreviousData={getPreviousData}
               onNumpadStateChange={setIsNumpadOpen}
               onScroll={handleScroll}
+              compactMode={compactMode}
             />
           )}
           {activeTab === 'exercises' && (
@@ -274,6 +277,8 @@ function App() {
             templates={templates}
             folders={folders}
             onRestoreData={handleRestoreData}
+            compactMode={compactMode}
+            setCompactMode={setCompactMode}
           />
         )}
       </div>

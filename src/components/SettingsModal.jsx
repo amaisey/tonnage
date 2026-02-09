@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import { workoutDb, db } from '../db/workoutDb';
 import { defaultExercises } from '../data/defaultExercises';
 
-export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData }) {
+export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, compactMode, setCompactMode }) {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [reimporting, setReimporting] = useState(false);
@@ -153,7 +153,23 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Bug #3: Compact Mode Toggle */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-medium">Compact Mode</h3>
+                <p className="text-gray-500 text-xs mt-1">Reduce padding and font sizes for more exercises on screen</p>
+              </div>
+              <button
+                onClick={() => setCompactMode(!compactMode)}
+                className={`w-12 h-7 rounded-full transition-colors relative ${compactMode ? 'bg-cyan-600' : 'bg-gray-700'}`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${compactMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          </div>
+
           {/* Backup Section */}
           <div className="bg-white/5 rounded-xl p-4 border border-white/10">
             <h3 className="text-white font-medium mb-3">Backup & Restore</h3>

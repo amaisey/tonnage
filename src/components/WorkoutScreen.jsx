@@ -4,7 +4,9 @@ import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES, SUPERSET_COLO
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll, compactMode }) => {
+  // Bug #3: Compact mode class helper
+  const c = (normal, compact) => compactMode ? compact : normal;
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
@@ -22,11 +24,31 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [lastCompletionTimestamp, setLastCompletionTimestamp] = useState(null); // single source of truth for timing
   const [frozenElapsed, setFrozenElapsed] = useState({}); // { 'exIndex-setIndex': seconds } - frozen timers for skipped sets
   const [restTimerMinimized, setRestTimerMinimized] = useState(false); // Bug #6: minimize rest timer banner
+  // Bug #9: Touch drag-to-reorder state
+  const [dragTouch, setDragTouch] = useState(null); // { exIndex, startY, currentY, insertBefore }
+  const longPressTimerRef = useRef(null);
   const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
   const restTimeRef = useRef(null);
   const wakeLockRef = useRef(null);
   const supersetColorMap = useRef({}); // Bug #13: Track superset color assignments
+  const scrollContainerRef = useRef(null);
+
+  // Bug #1: Seed timer state when workout starts so the first set shows elapsed time
+  useEffect(() => {
+    if (activeWorkout?.exercises?.length > 0 && !lastCompletionTimestamp && !expectedNext) {
+      setLastCompletionTimestamp(activeWorkout.startTime);
+      let firstIncomplete = null;
+      for (let i = 0; i < activeWorkout.exercises.length; i++) {
+        const setIdx = activeWorkout.exercises[i].sets.findIndex(s => !s.completed);
+        if (setIdx >= 0) {
+          firstIncomplete = { exIndex: i, setIndex: setIdx };
+          break;
+        }
+      }
+      setExpectedNext(firstIncomplete || { exIndex: 0, setIndex: 0 });
+    }
+  }, [activeWorkout?.exercises?.length]);
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -382,6 +404,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         set.completedAt = anchorTime + (timePerSet * numSets);
       }
 
+      // Bug #2: Freeze the elapsed time for the set being completed
+      if (lastCompletionTimestamp) {
+        const elapsed = Math.round((now - lastCompletionTimestamp) / 1000);
+        setFrozenElapsed(prev => ({
+          ...prev,
+          [`${exIndex}-${setIndex}`]: elapsed
+        }));
+      }
+
       // Bug #3/#10: If user completed a set that wasn't the expected next, freeze the skipped timer
       if (expectedNext &&
           (expectedNext.exIndex !== exIndex || expectedNext.setIndex !== setIndex) &&
@@ -407,14 +438,47 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
       }
     } else {
-      // Uncompleting a set - recalculate expected next
+      // Bug #7: Uncompleting a set - restore timer state properly
       set.completedAt = undefined;
-      // Clear frozen elapsed for this set if it was frozen
+
+      // Clear frozen elapsed for this set
       setFrozenElapsed(prev => {
         const copy = { ...prev };
         delete copy[`${exIndex}-${setIndex}`];
         return copy;
       });
+
+      // Find the most recent completedAt among all remaining completed sets
+      let latestCompletedAt = null;
+      updated.exercises.forEach((ex) => {
+        ex.sets?.forEach((s) => {
+          if (s.completed && s.completedAt) {
+            if (!latestCompletedAt || s.completedAt > latestCompletedAt) {
+              latestCompletedAt = s.completedAt;
+            }
+          }
+        });
+      });
+
+      // Restore lastCompletionTimestamp to the previous completion
+      // If no previous completions, fall back to workout start time
+      setLastCompletionTimestamp(latestCompletedAt || activeWorkout.startTime);
+
+      // Recalculate expectedNext — find the first incomplete set
+      let newExpected = null;
+      for (let i = 0; i < updated.exercises.length; i++) {
+        const nextSetIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
+        if (nextSetIdx >= 0) {
+          newExpected = { exIndex: i, setIndex: nextSetIdx };
+          break;
+        }
+      }
+      setExpectedNext(newExpected);
+
+      // Cancel any active rest timer
+      if (restTimer.active) {
+        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
+      }
     }
     setActiveWorkout(updated);
   };
@@ -441,6 +505,80 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Bug #11: Drag to reorder exercises
+  // Bug #9: Long-press + touch drag-to-reorder system
+  const handleExerciseTouchStart = (exIndex, e) => {
+    const touch = e.touches[0];
+    const startY = touch.clientY;
+    longPressTimerRef.current = setTimeout(() => {
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(50);
+      setDragTouch({ exIndex, startY, currentY: startY, insertBefore: null });
+      // Prevent scrolling while dragging
+      e.target.closest('.workout-scroll-container')?.style.setProperty('overflow', 'hidden');
+    }, 500);
+    // Store initial position to detect movement that should cancel long-press
+    longPressTimerRef.current._startX = touch.clientX;
+    longPressTimerRef.current._startY = touch.clientY;
+  };
+
+  const handleExerciseTouchMove = (e) => {
+    if (!dragTouch) {
+      // Cancel long-press if finger moves before timer fires
+      if (longPressTimerRef.current) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - (longPressTimerRef.current._startX || 0);
+        const dy = touch.clientY - (longPressTimerRef.current._startY || 0);
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          clearTimeout(longPressTimerRef.current);
+        }
+      }
+      return;
+    }
+    e.preventDefault();
+    const touch = e.touches[0];
+    // Determine which exercise slot the finger is over
+    let insertBefore = null;
+    const entries = Object.entries(dragRefs.current)
+      .filter(([, el]) => el)
+      .sort(([a], [b]) => parseInt(a) - parseInt(b));
+
+    for (const [idx, el] of entries) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (touch.clientY < midY && parseInt(idx) !== dragTouch.exIndex) {
+        insertBefore = parseInt(idx);
+        break;
+      }
+    }
+    // If past all items, insert at end
+    if (insertBefore === null) {
+      const lastIdx = entries.length > 0 ? parseInt(entries[entries.length - 1][0]) : 0;
+      if (lastIdx !== dragTouch.exIndex) {
+        insertBefore = lastIdx + 1;
+      }
+    }
+    setDragTouch(prev => ({ ...prev, currentY: touch.clientY, insertBefore }));
+  };
+
+  const handleExerciseTouchEnd = () => {
+    clearTimeout(longPressTimerRef.current);
+    if (dragTouch && dragTouch.insertBefore !== null && dragTouch.insertBefore !== dragTouch.exIndex) {
+      const fromIndex = dragTouch.exIndex;
+      let toIndex = dragTouch.insertBefore;
+      // Adjust for the removal
+      if (fromIndex < toIndex) toIndex--;
+
+      const updated = { ...activeWorkout };
+      const [movedExercise] = updated.exercises.splice(fromIndex, 1);
+      updated.exercises.splice(toIndex, 0, movedExercise);
+      setActiveWorkout(updated);
+    }
+    setDragTouch(null);
+    // Re-enable scrolling
+    document.querySelector('.workout-scroll-container')?.style.removeProperty('overflow');
+  };
+
+  // Legacy drag functions (kept for backward compatibility with grip handle)
   const startDrag = (exIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
     setDragState({
@@ -456,24 +594,17 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   const dropExercise = (targetIndex, targetPhase) => {
     if (!dragState) return;
-
     const updated = { ...activeWorkout };
     const [movedExercise] = updated.exercises.splice(dragState.exIndex, 1);
-
-    // Update the phase if dropping to a different phase
     movedExercise.phase = targetPhase;
-
-    // Adjust target index if we removed from before the target
     const adjustedTarget = dragState.exIndex < targetIndex ? targetIndex - 1 : targetIndex;
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
-
     setActiveWorkout(updated);
     setDragState(null);
   };
 
   const moveExercise = (fromIndex, toIndex, newPhase) => {
     if (fromIndex === toIndex) return;
-
     const updated = { ...activeWorkout };
     const [movedExercise] = updated.exercises.splice(fromIndex, 1);
     movedExercise.phase = newPhase || movedExercise.phase;
@@ -499,23 +630,47 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setDeleteConfirmIndex(null);
   };
 
+  // Bug #5: Unlink restores original rest time
   const unlinkSuperset = (exIndex) => {
     const updated = { ...activeWorkout };
-    delete updated.exercises[exIndex].supersetId;
+    const exercise = updated.exercises[exIndex];
+
+    // Restore original rest time if it was saved before superset linking
+    if (exercise._preSupersetRestTime) {
+      exercise.restTime = exercise._preSupersetRestTime;
+      delete exercise._preSupersetRestTime;
+    }
+
+    delete exercise.supersetId;
     setActiveWorkout(updated);
   };
 
-  // Link exercise with the next one as a superset
+  // Bug #5: Link exercise with the next one as a superset — zero non-last rest timers
   const linkWithNext = (exIndex) => {
-    if (exIndex >= activeWorkout.exercises.length - 1) return; // No next exercise
+    if (exIndex >= activeWorkout.exercises.length - 1) return;
     const updated = { ...activeWorkout };
     const currentEx = updated.exercises[exIndex];
     const nextEx = updated.exercises[exIndex + 1];
 
-    // Create new superset ID or use existing one
     const supersetId = currentEx.supersetId || nextEx.supersetId || `superset-${Date.now()}`;
     currentEx.supersetId = supersetId;
     nextEx.supersetId = supersetId;
+
+    // Zero out rest timers for all non-last exercises in the superset
+    const supersetExercises = updated.exercises
+      .map((ex, idx) => ({ ex, idx }))
+      .filter(({ ex }) => ex.supersetId === supersetId);
+
+    supersetExercises.forEach(({ ex }, i) => {
+      if (i < supersetExercises.length - 1) {
+        // Save original rest time before zeroing (for restore on unlink)
+        if (!ex._preSupersetRestTime) {
+          ex._preSupersetRestTime = ex.restTime || 90;
+        }
+        ex.restTime = 0;
+      }
+      // Last exercise keeps its rest time
+    });
 
     setActiveWorkout(updated);
   };
@@ -681,25 +836,33 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
 
     return (
-      <div key={exIndex} className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : 'p-4 rounded-2xl mb-4'}`}>
-        <div className="flex items-center justify-between mb-2">
+      <div key={exIndex}>
+        {/* Bug #9: Drag insertion indicator - show above this card */}
+        {dragTouch && dragTouch.insertBefore === exIndex && dragTouch.exIndex !== exIndex && (
+          <div className="h-1 bg-cyan-400 rounded-full mx-2 mb-1 shadow-lg shadow-cyan-400/50 animate-pulse" />
+        )}
+      <div
+        ref={el => dragRefs.current[exIndex] = el}
+        onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
+        onTouchMove={handleExerciseTouchMove}
+        onTouchEnd={handleExerciseTouchEnd}
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `${c('p-3','p-2')} ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `${c('p-4','p-2')} rounded-2xl ${c('mb-4','mb-2')}`} transition-transform`}>
+        <div className={`flex items-center justify-between ${c('mb-2','mb-1')}`}>
           <div className="flex items-center gap-2">
-            {/* Bug #11: Drag handle */}
-            {!isSuperset && (
-              <button
-                onClick={() => dragState ? cancelDrag() : startDrag(exIndex)}
-                className={`p-1 rounded ${dragState?.exIndex === exIndex ? 'text-cyan-400 bg-cyan-900/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/10'}`}
-                title={dragState ? 'Cancel reorder' : 'Reorder exercise'}
-              >
-                <Icons.GripVertical />
-              </button>
-            )}
+            {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
+            <button
+              onClick={() => dragState ? cancelDrag() : startDrag(exIndex)}
+              className={`p-1 rounded touch-none ${dragState?.exIndex === exIndex ? 'text-cyan-400 bg-cyan-900/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/10'}`}
+              title="Hold to reorder"
+            >
+              <Icons.GripVertical />
+            </button>
             {isSuperset && (
               <div className={`w-1 h-8 rounded-full ${supersetColorDot || 'bg-teal-500'}`} />
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={() => setExerciseDetail(exercise)} className="font-semibold text-white hover:text-cyan-400 transition-colors text-left">{exercise.name}</button>
+                <button onClick={() => setExerciseDetail(exercise)} className={`${c('font-semibold','text-sm font-medium')} text-white hover:text-cyan-400 transition-colors text-left`}>{exercise.name}</button>
                 {typeInfo && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
@@ -823,9 +986,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
+          className={`w-full ${c('mt-2 py-2','mt-1 py-1')} bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm`}>
           <Icons.Plus /> Add Set ({formatDuration(exerciseRestTime)})
         </button>
+      </div>
+      {/* Bug #9: Drag insertion indicator - show after last card */}
+      {dragTouch && dragTouch.insertBefore === exIndex + 1 && dragTouch.exIndex !== exIndex && (
+        <div className="h-1 bg-cyan-400 rounded-full mx-2 mt-1 shadow-lg shadow-cyan-400/50 animate-pulse" />
+      )}
       </div>
     );
   };
@@ -952,7 +1120,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       )}
 
       <div
-        className={`flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
+        ref={scrollContainerRef}
+        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'

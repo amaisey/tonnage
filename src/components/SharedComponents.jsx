@@ -784,8 +784,8 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
           <div className="flex items-center gap-2">
             <span className="text-white/80 text-xs">{exerciseName}</span>
             {onMinimize && (
-              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-1" title="Minimize">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-1" title="Dismiss">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             )}
           </div>
