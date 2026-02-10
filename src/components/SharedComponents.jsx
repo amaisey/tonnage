@@ -336,7 +336,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
         <div key={field} className="flex-1">
           <button
             onClick={() => onOpenBandPicker ? onOpenBandPicker(currentColor) : onUpdate('bandColor', currentColor === 'red' ? 'green' : 'red')}
-            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-1.5 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
+            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-2 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
           >
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
@@ -357,7 +357,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       <button
         key={field}
         onClick={() => onOpenNumpad(setIndex, field, fieldIndex)}
-        className={`flex-1 px-2 py-1.5 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'} ${isProposed ? 'opacity-50' : ''}`}
+        className={`flex-1 px-2 py-2 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'} ${isProposed ? 'opacity-50' : ''}`}
       >
         {displayValue}
       </button>
@@ -428,13 +428,15 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     <>
       {/* Dual rest time indicator - Elapsed (left) | Target (right) */}
       {showRestRow && (
-        <div className="flex items-center justify-center py-0.5 gap-1.5">
+        <div className="flex items-center justify-center py-1 gap-2">
           <div className="flex-1 h-px bg-rose-700/30"></div>
-          <span className={`text-[10px] font-mono px-1 min-w-[40px] text-center ${set.completed ? 'text-white' : 'text-cyan-400'}`}>
+          {/* Left: Elapsed time (actual rest taken or live counter) */}
+          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${set.completed ? 'text-white' : 'text-cyan-400'}`}>
             {formatDuration(elapsedTime)}
           </span>
-          <span className="text-gray-600 text-[10px]">|</span>
-          <span className={`text-[10px] font-mono px-1 min-w-[40px] text-center ${restTime > 0 ? 'text-rose-400' : 'text-gray-600'}`}>
+          <span className="text-gray-600 text-xs">|</span>
+          {/* Right: Target rest time */}
+          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${restTime > 0 ? 'text-rose-400' : 'text-gray-600'}`}>
             {restTime > 0 ? formatDuration(restTime) : '-'}
           </span>
           <div className="flex-1 h-px bg-rose-700/30"></div>
@@ -453,7 +455,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
         {/* Main row content */}
         <div
           ref={rowRef}
-          className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center px-2 py-1 ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'} relative z-10`}
+          className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center p-2 ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'} relative z-10`}
           style={{
             transform: `translateX(${swipeX}px)`,
             transition: isSwiping ? 'none' : 'transform 0.2s ease-out',
@@ -469,7 +471,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           {fields.length < 2 && <div></div>}
           {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
           {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
-          <button onClick={onComplete} className={`p-1.5 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+          <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
             <Icons.Check />
           </button>
         </div>
@@ -773,32 +775,32 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
 
   return (
     <div className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4" style={{ top: 'calc(env(safe-area-inset-top) + 3rem)' }}>
-      <div className={`rounded-2xl px-3 py-2 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1.5 text-white">
+      <div className={`rounded-2xl p-4 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-white">
             <Icons.TimerSmall />
-            <span className="text-xs font-medium">Rest Timer</span>
+            <span className="text-sm font-medium">Rest Timer</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span className="text-white/80 text-xs">{exerciseName}</span>
             {onMinimize && (
-              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-0.5" title="Dismiss">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-1" title="Dismiss">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <div className="flex-1">
-            <div className="text-2xl font-bold text-white font-mono">{formatDuration(timeRemaining)}</div>
-            <div className="h-1 bg-white/30 rounded-full mt-1 overflow-hidden">
+            <div className="text-3xl font-bold text-white font-mono">{formatDuration(timeRemaining)}</div>
+            <div className="h-1.5 bg-white/30 rounded-full mt-2 overflow-hidden">
               <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${progress * 100}%` }}></div>
             </div>
           </div>
-          <div className="flex gap-1.5">
-            <button onClick={() => onAddTime(-10)} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">-10s</button>
-            <button onClick={() => onAddTime(10)} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">+10s</button>
-            <button onClick={onSkip} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">Skip</button>
+          <div className="flex gap-2">
+            <button onClick={() => onAddTime(-10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">-10s</button>
+            <button onClick={() => onAddTime(10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">+10s</button>
+            <button onClick={onSkip} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">Skip</button>
           </div>
         </div>
       </div>
@@ -806,4 +808,263 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
   );
 };
 
-export { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };
+// Background images mapped to exercise categories
+const CATEGORY_BACKGROUNDS = {
+  barbell: '/backgrounds/bg-1.jpg',
+  dumbbell: '/backgrounds/bg-3.jpg',
+  machine: '/backgrounds/bg-8.jpg',
+  weighted_bodyweight: '/backgrounds/bg-6.jpg',
+  assisted_bodyweight: '/backgrounds/bg-7.jpg',
+  reps_only: '/backgrounds/bg-4.jpg',
+  cardio: '/backgrounds/bg-5.jpg',
+  duration: '/backgrounds/bg-4.jpg',
+  band: '/backgrounds/bg-9.jpg',
+};
+
+// Exercise Detail Modal with About, History, Charts, Records tabs
+const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
+  const [activeTab, setActiveTab] = useState('about');
+  const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-1.jpg';
+
+  // Get all instances of this exercise from history
+  const exerciseHistory = history.flatMap(workout =>
+    workout.exercises
+      .filter(ex => ex.name === exercise.name)
+      .map(ex => ({
+        ...ex,
+        workoutDate: workout.startTime,
+        workoutName: workout.name
+      }))
+  ).sort((a, b) => b.workoutDate - a.workoutDate);
+
+  // Calculate records
+  const records = {
+    maxWeight: 0,
+    maxReps: 0,
+    maxVolume: 0,
+    maxDuration: 0,
+    maxDistance: 0,
+    totalSets: 0,
+    totalVolume: 0,
+  };
+
+  exerciseHistory.forEach(ex => {
+    ex.sets.filter(s => s.completed).forEach(set => {
+      records.totalSets++;
+      if (set.weight) {
+        records.maxWeight = Math.max(records.maxWeight, set.weight);
+        const volume = (set.weight || 0) * (set.reps || 0);
+        records.maxVolume = Math.max(records.maxVolume, volume);
+        records.totalVolume += volume;
+      }
+      if (set.reps) records.maxReps = Math.max(records.maxReps, set.reps);
+      if (set.duration) records.maxDuration = Math.max(records.maxDuration, set.duration);
+      if (set.distance) records.maxDistance = Math.max(records.maxDistance, set.distance);
+    });
+  });
+
+  const tabs = [
+    { id: 'about', label: 'About' },
+    { id: 'history', label: 'History' },
+    { id: 'charts', label: 'Charts' },
+    { id: 'records', label: 'Records' },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+      {/* Hero Header with Background Image */}
+      <div className="relative h-48 flex-shrink-0">
+        <img src={backgroundImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black"></div>
+        <div className="relative z-10 h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="px-4 py-3 flex items-center justify-between">
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 border border-white/20"><Icons.X /></button>
+            <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>
+          </div>
+          <div className="flex-1 flex flex-col justify-end p-4">
+            <h2 className="text-2xl font-bold text-white drop-shadow-lg">{exercise.name}</h2>
+            <p className="text-white/80 text-sm">{exercise.bodyPart} • {CATEGORIES[exercise.category]?.label}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex bg-white/5 backdrop-blur-sm border-b border-white/10">
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'text-white border-b-2 border-white' : 'text-white/50'}`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
+        {activeTab === 'about' && (
+          <div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-4 border border-white/20">
+              <h3 className="text-sm font-semibold text-white/60 mb-3">Quick Stats</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/10 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-white">{exerciseHistory.length}</div>
+                  <div className="text-xs text-white/60">Times Performed</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-white">{records.totalSets}</div>
+                  <div className="text-xs text-white/60">Total Sets</div>
+                </div>
+                {records.maxWeight > 0 && (
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-white">{records.maxWeight}</div>
+                    <div className="text-xs text-white/60">Max Weight (lbs)</div>
+                  </div>
+                )}
+                {records.maxReps > 0 && (
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-white">{records.maxReps}</div>
+                    <div className="text-xs text-white/60">Max Reps</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <h3 className="text-sm font-semibold text-white/60 mb-2">Instructions</h3>
+              <p className="text-white/80 text-sm">
+                {exercise.instructions || "No instructions added yet. Tap Edit to add instructions for this exercise."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div>
+            {exerciseHistory.length === 0 ? (
+              <div className="text-center text-white/50 py-8">No history for this exercise yet</div>
+            ) : (
+              exerciseHistory.map((ex, i) => (
+                <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-3 border border-white/20">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="font-medium text-white">{ex.workoutName}</div>
+                    <div className="text-xs text-white/50">{new Date(ex.workoutDate).toLocaleDateString()}</div>
+                  </div>
+                  <div className="space-y-1">
+                    {ex.sets.filter(s => s.completed).map((set, j) => (
+                      <div key={j} className="flex items-center gap-2 text-sm">
+                        <span className="text-white/40 w-6">{j + 1}</span>
+                        {set.weight !== undefined && <span className="text-white">{set.weight} lbs</span>}
+                        {set.reps !== undefined && <span className="text-white/60">× {set.reps}</span>}
+                        {set.duration !== undefined && <span className="text-white">{formatDuration(set.duration)}</span>}
+                        {set.distance !== undefined && <span className="text-white">{set.distance} km</span>}
+                        {set.bandColor && <span className={`${BAND_COLORS[set.bandColor]?.bg} ${BAND_COLORS[set.bandColor]?.text} px-2 py-0.5 rounded text-xs`}>{set.bandColor}</span>}
+                        {set.rpe && <span className="text-white/70 text-xs bg-white/10 px-2 py-0.5 rounded">RPE {set.rpe}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'charts' && (
+          <div>
+            {exerciseHistory.length === 0 ? (
+              <div className="text-center text-white/50 py-8">Complete this exercise to see charts</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                  <h3 className="text-sm font-semibold text-white/60 mb-4">Max Weight Over Time</h3>
+                  <div className="flex items-end gap-1 h-32">
+                    {exerciseHistory.slice(0, 10).reverse().map((ex, i) => {
+                      const maxW = Math.max(...ex.sets.filter(s => s.completed && s.weight).map(s => s.weight), 0);
+                      const heightPct = records.maxWeight > 0 ? (maxW / records.maxWeight) * 100 : 0;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full bg-rose-600 rounded-t" style={{ height: `${heightPct}%`, minHeight: maxW > 0 ? '4px' : '0' }}></div>
+                          <span className="text-xs text-white/40">{new Date(ex.workoutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                  <h3 className="text-sm font-semibold text-white/60 mb-4">Volume Over Time</h3>
+                  <div className="flex items-end gap-1 h-32">
+                    {exerciseHistory.slice(0, 10).reverse().map((ex, i) => {
+                      const vol = ex.sets.filter(s => s.completed).reduce((acc, s) => acc + (s.weight || 0) * (s.reps || 0), 0);
+                      const maxVol = Math.max(...exerciseHistory.map(e => e.sets.filter(s => s.completed).reduce((a, s) => a + (s.weight || 0) * (s.reps || 0), 0)));
+                      const heightPct = maxVol > 0 ? (vol / maxVol) * 100 : 0;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full bg-teal-500 rounded-t" style={{ height: `${heightPct}%`, minHeight: vol > 0 ? '4px' : '0' }}></div>
+                          <span className="text-xs text-white/40">{new Date(ex.workoutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'records' && (
+          <div>
+            {exerciseHistory.length === 0 ? (
+              <div className="text-center text-white/50 py-8">Complete this exercise to see records</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {records.maxWeight > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{records.maxWeight}</div>
+                    <div className="text-xs text-white/50 mt-1">Max Weight (lbs)</div>
+                  </div>
+                )}
+                {records.maxReps > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{records.maxReps}</div>
+                    <div className="text-xs text-white/50 mt-1">Max Reps</div>
+                  </div>
+                )}
+                {records.maxVolume > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{records.maxVolume.toLocaleString()}</div>
+                    <div className="text-xs text-white/50 mt-1">Max Volume (lbs)</div>
+                  </div>
+                )}
+                {records.totalVolume > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{records.totalVolume.toLocaleString()}</div>
+                    <div className="text-xs text-white/50 mt-1">Total Volume (lbs)</div>
+                  </div>
+                )}
+                {records.maxDuration > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{formatDuration(records.maxDuration)}</div>
+                    <div className="text-xs text-white/50 mt-1">Max Duration</div>
+                  </div>
+                )}
+                {records.maxDistance > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                    <div className="text-3xl font-bold text-white">{records.maxDistance}</div>
+                    <div className="text-xs text-white/50 mt-1">Max Distance (km)</div>
+                  </div>
+                )}
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                  <div className="text-3xl font-bold text-white">{records.totalSets}</div>
+                  <div className="text-xs text-white/50 mt-1">Total Sets</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
+                  <div className="text-3xl font-bold text-white">{exerciseHistory.length}</div>
+                  <div className="text-xs text-white/50 mt-1">Times Performed</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, ExerciseDetailModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };
