@@ -208,7 +208,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
   const startRestTimer = (exerciseName, restTime) => {
-    const time = restTime || 90;
+    const time = restTime ?? 90;
+    if (time <= 0) return; // Don't start a rest timer for exercises with 0 rest
     setRestTimer({ active: true, time, totalTime: time, startedAt: Date.now(), exerciseName });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
@@ -286,12 +287,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   // For set 0 of an exercise, use the PREVIOUS exercise's rest time
   const getDisplayRestTime = (exIndex, setIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
-    if (setIndex > 0) return exercise.restTime || 90;
+    if (setIndex > 0) return exercise.restTime ?? 90;
     // Set 0: find the previous exercise's rest time
     if (exIndex > 0) {
-      return activeWorkout.exercises[exIndex - 1].restTime || 90;
+      return activeWorkout.exercises[exIndex - 1].restTime ?? 90;
     }
-    return exercise.restTime || 90;
+    return exercise.restTime ?? 90;
   };
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
@@ -480,15 +481,41 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }));
       }
 
-      // Calculate the next expected set from what was just completed
-      const newExpected = calculateNextExpected(exIndex, setIndex);
+      // Calculate superset-aware next (used for rest timer + default navigation)
+      const supersetNext = calculateNextExpected(exIndex, setIndex);
+
+      // Smart expectedNext: if user completed an out-of-order set,
+      // first check for earlier incomplete sets in the SAME exercise,
+      // then fall through to superset-aware navigation for cross-exercise flow
+      let newExpected;
+      const hasEarlierIncomplete = exercise.sets.some((s, idx) => idx < setIndex && !s.completed);
+      if (hasEarlierIncomplete) {
+        // Same exercise has earlier incomplete sets — point back to the first one
+        const firstIncompleteIdx = exercise.sets.findIndex(s => !s.completed);
+        newExpected = firstIncompleteIdx >= 0 ? { exIndex, setIndex: firstIncompleteIdx } : supersetNext;
+      } else {
+        // No earlier incompletes in this exercise — use superset-aware navigation
+        newExpected = supersetNext;
+      }
+
+      // Final fallback: if supersetNext returned null but there are still incomplete sets
+      // anywhere in the workout, find the first one
+      if (!newExpected) {
+        for (let i = 0; i < updated.exercises.length; i++) {
+          const nextSetIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
+          if (nextSetIdx >= 0) {
+            newExpected = { exIndex: i, setIndex: nextSetIdx };
+            break;
+          }
+        }
+      }
       setExpectedNext(newExpected);
       setLastCompletionTimestamp(now);
 
       // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
-      if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
+      if (supersetNext && shouldStartRestTimer(exIndex, supersetNext)) {
         // Bug #2: Use the just-completed exercise's rest time for the timer
-        startRestTimer(exercise.name, exercise.restTime || 90);
+        startRestTimer(exercise.name, exercise.restTime ?? 90);
       } else if (restTimer.active) {
         // Within superset - cancel any active rest timer
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
@@ -548,6 +575,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (lastSet[key] !== undefined && key !== 'completed' && key !== 'completedAt') newSet[key] = lastSet[key];
     });
     exercise.sets.push(newSet);
+    const newSetIndex = exercise.sets.length - 1;
+
+    // If expectedNext is null (all sets were complete), point timer to the new set
+    // and reset the timestamp so the elapsed counter starts fresh
+    if (!expectedNext) {
+      setExpectedNext({ exIndex, setIndex: newSetIndex });
+      setLastCompletionTimestamp(Date.now());
+    }
+
     setActiveWorkout(updated);
   };
 
@@ -721,7 +757,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (i < supersetExercises.length - 1) {
         // Save original rest time before zeroing (for restore on unlink)
         if (!ex._preSupersetRestTime) {
-          ex._preSupersetRestTime = ex.restTime || 90;
+          ex._preSupersetRestTime = ex.restTime ?? 90;
         }
         ex.restTime = 0;
       }
@@ -865,7 +901,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
   const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true, supersetColorDot = null) => {
-    const exerciseRestTime = exercise.restTime || 90;
+    const exerciseRestTime = exercise.restTime ?? 90;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
     const phaseInfo = exercise.phase && exercise.phase !== 'workout' ? EXERCISE_PHASES[exercise.phase] : null;
 

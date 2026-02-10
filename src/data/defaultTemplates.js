@@ -26,7 +26,6 @@ export const defaultFolders = [
 ];
 
 export const sampleTemplates = [
-  // FOCUSED SPLITS
   {
     id: 'ex-1000',
     name: 'Push Day',
@@ -39,7 +38,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -47,7 +48,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Band Pull-Aparts',
@@ -55,7 +58,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Push-Ups',
@@ -63,7 +68,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Bench Press',
@@ -87,6 +94,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 120,
         sets: [
+          { weight: 50, reps: 12 },
           { weight: 50, reps: 12 },
           { weight: 50, reps: 12 },
           { weight: 50, reps: 12 },
@@ -175,7 +183,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Triceps Stretch',
@@ -183,7 +193,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -199,7 +211,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -207,7 +221,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Cat-Cow',
@@ -215,7 +231,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 10 }],
+        sets: [
+          { reps: 10 },
+        ],
       },
       {
         name: 'Scapular Pull-Ups',
@@ -223,7 +241,9 @@ export const sampleTemplates = [
         category: 'assisted_bodyweight',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 8 }],
+        sets: [
+          { reps: 8 },
+        ],
       },
       {
         name: 'Barbell Row',
@@ -319,12 +339,14 @@ export const sampleTemplates = [
         supersetId: 'SS3',
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Lat Stretch',
@@ -332,7 +354,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -348,7 +372,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Leg Swings',
@@ -356,7 +382,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Walking Lunges',
@@ -364,7 +392,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 10 }],
+        sets: [
+          { reps: 10 },
+        ],
       },
       {
         name: 'Barbell Squat',
@@ -388,6 +418,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 120,
         sets: [
+          { weight: 70, reps: 12 },
           { weight: 70, reps: 12 },
           { weight: 70, reps: 12 },
           { weight: 70, reps: 12 },
@@ -428,6 +459,7 @@ export const sampleTemplates = [
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -451,7 +483,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Pigeon Pose',
@@ -459,7 +493,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 90 }],
+        sets: [
+          { duration: 90 },
+        ],
       },
     ],
   },
@@ -475,7 +511,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Band Pull-Throughs',
@@ -483,7 +521,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Bodyweight Glute Bridge',
@@ -491,7 +531,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Deadlift',
@@ -577,7 +619,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hip Flexor Stretch',
@@ -585,7 +629,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 90 }],
+        sets: [
+          { duration: 90 },
+        ],
       },
     ],
   },
@@ -601,7 +647,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Band Dislocates',
@@ -609,7 +657,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 10 }],
+        sets: [
+          { bandColor: 'red', reps: 10 },
+        ],
       },
       {
         name: 'Band External Rotation',
@@ -617,7 +667,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Overhead Press',
@@ -742,7 +794,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Triceps Stretch',
@@ -750,7 +804,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -766,7 +822,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -774,7 +832,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Bodyweight Squat',
@@ -782,7 +842,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Band Pull-Aparts',
@@ -790,7 +852,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Barbell Squat',
@@ -869,12 +933,14 @@ export const sampleTemplates = [
         ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Quad Stretch',
@@ -882,7 +948,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Chest Stretch',
@@ -890,7 +958,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -906,7 +976,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Band Pull-Aparts',
@@ -914,7 +986,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Push-Ups',
@@ -922,7 +996,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Bench Press',
@@ -946,6 +1022,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 120,
         sets: [
+          { weight: 55, reps: 15 },
           { weight: 55, reps: 15 },
           { weight: 55, reps: 15 },
           { weight: 55, reps: 15 },
@@ -1034,7 +1111,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Lat Stretch',
@@ -1042,7 +1121,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -1058,7 +1139,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Cat-Cow',
@@ -1066,7 +1149,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 10 }],
+        sets: [
+          { reps: 10 },
+        ],
       },
       {
         name: 'Scapular Pull-Ups',
@@ -1074,7 +1159,9 @@ export const sampleTemplates = [
         category: 'assisted_bodyweight',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 8 }],
+        sets: [
+          { reps: 8 },
+        ],
       },
       {
         name: 'Barbell Row',
@@ -1182,12 +1269,14 @@ export const sampleTemplates = [
         ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Doorway Pec Stretch',
@@ -1195,7 +1284,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -1211,7 +1302,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Leg Swings',
@@ -1219,7 +1312,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Hip Circles',
@@ -1227,7 +1322,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Barbell Squat',
@@ -1326,7 +1423,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hamstring Stretch',
@@ -1334,7 +1433,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hip Flexor Stretch',
@@ -1342,7 +1443,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 90 }],
+        sets: [
+          { duration: 90 },
+        ],
       },
     ],
   },
@@ -1358,7 +1461,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -1366,7 +1471,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Band Pull-Aparts',
@@ -1374,7 +1481,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Bench Press',
@@ -1487,15 +1596,19 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -1511,7 +1624,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Bodyweight Squat',
@@ -1519,7 +1634,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -1527,7 +1644,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Cat-Cow',
@@ -1535,7 +1654,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 10 }],
+        sets: [
+          { reps: 10 },
+        ],
       },
       {
         name: 'Barbell Squat',
@@ -1632,7 +1753,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Chest Stretch',
@@ -1640,15 +1763,19 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -1664,7 +1791,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Band Pull-Aparts',
@@ -1672,7 +1801,9 @@ export const sampleTemplates = [
         category: 'band',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ bandColor: 'red', reps: 15 }],
+        sets: [
+          { bandColor: 'red', reps: 15 },
+        ],
       },
       {
         name: 'Push-Ups',
@@ -1680,7 +1811,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Dumbbell Bench Press',
@@ -1781,7 +1914,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Shoulder Stretch',
@@ -1789,7 +1924,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -1805,7 +1942,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Leg Swings',
@@ -1813,7 +1952,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Glute Bridge',
@@ -1821,7 +1962,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Goblet Squat',
@@ -1899,6 +2042,7 @@ export const sampleTemplates = [
           { reps: 15 },
           { reps: 15 },
           { reps: 15 },
+          { reps: 15 },
         ],
         supersetId: 'SS2',
       },
@@ -1908,7 +2052,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hamstring Stretch',
@@ -1916,7 +2062,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hip Flexor Stretch',
@@ -1924,7 +2072,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 90 }],
+        sets: [
+          { duration: 90 },
+        ],
       },
     ],
   },
@@ -1940,7 +2090,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -1948,7 +2100,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Hip Circles',
@@ -1956,7 +2110,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Push-Ups',
@@ -2077,12 +2233,14 @@ export const sampleTemplates = [
         ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Quad Stretch',
@@ -2090,7 +2248,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Chest Stretch',
@@ -2098,7 +2258,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -2114,7 +2276,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'Bodyweight Squat',
@@ -2122,7 +2286,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 15 }],
+        sets: [
+          { reps: 15 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -2130,7 +2296,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Goblet Squat',
@@ -2227,7 +2395,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Chest Stretch',
@@ -2235,15 +2405,19 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
@@ -2259,7 +2433,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 30 }],
+        sets: [
+          { reps: 30 },
+        ],
       },
       {
         name: 'High Knees',
@@ -2267,7 +2443,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 0,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Arm Circles',
@@ -2275,7 +2453,9 @@ export const sampleTemplates = [
         category: 'reps_only',
         phase: 'warmup',
         restTime: 30,
-        sets: [{ reps: 20 }],
+        sets: [
+          { reps: 20 },
+        ],
       },
       {
         name: 'Burpees',
@@ -2382,12 +2562,14 @@ export const sampleTemplates = [
         supersetId: 'SS3',
       },
       {
-        name: "Child's Pose",
+        name: 'Child\'s Pose',
         bodyPart: 'Back',
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Quad Stretch',
@@ -2395,7 +2577,9 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
       {
         name: 'Hamstring Stretch',
@@ -2403,12 +2587,12 @@ export const sampleTemplates = [
         category: 'duration',
         phase: 'cooldown',
         restTime: 0,
-        sets: [{ duration: 60 }],
+        sets: [
+          { duration: 60 },
+        ],
       },
     ],
   },
-,
-  // SHOULDER & BACK CORRECTING COURSE
   {
     id: 'cc-5000',
     name: 'Day 1 - Push (Bench, OHP, DB Incline Press)',
@@ -2829,6 +3013,7 @@ export const sampleTemplates = [
           { weight: 245, reps: 12 },
           { weight: 245, reps: 12 },
           { weight: 245, reps: 12 },
+          { weight: 245, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -2839,6 +3024,9 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
         ],
         supersetId: 'SS2',
@@ -2864,9 +3052,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -3308,6 +3497,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
@@ -4117,6 +4307,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -4141,9 +4333,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -4585,6 +4778,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
@@ -5394,6 +5588,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -5418,9 +5614,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -5862,6 +6059,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
           { reps: 12 },
@@ -6664,6 +6862,7 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -6677,6 +6876,7 @@ export const sampleTemplates = [
           { weight: 76, reps: 15 },
           { weight: 76, reps: 15 },
           { weight: 76, reps: 15 },
+          { weight: 76, reps: 15 },
         ],
         supersetId: 'SS3',
       },
@@ -6687,9 +6887,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -7120,6 +7321,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
         ],
@@ -7906,6 +8108,7 @@ export const sampleTemplates = [
           { weight: 250, reps: 12 },
           { weight: 250, reps: 12 },
           { weight: 250, reps: 12 },
+          { weight: 250, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -7916,6 +8119,9 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
         ],
         supersetId: 'SS2',
@@ -7941,9 +8147,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -8385,6 +8592,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
@@ -9194,6 +9402,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -9218,9 +9428,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -9662,6 +9873,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
@@ -10471,6 +10683,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -10495,9 +10709,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -10939,6 +11154,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
           { reps: 12 },
@@ -11741,6 +11957,7 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -11754,6 +11971,7 @@ export const sampleTemplates = [
           { weight: 80, reps: 15 },
           { weight: 80, reps: 15 },
           { weight: 80, reps: 15 },
+          { weight: 80, reps: 15 },
         ],
         supersetId: 'SS3',
       },
@@ -11764,9 +11982,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -12197,6 +12416,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
         ],
@@ -12987,6 +13207,7 @@ export const sampleTemplates = [
           { weight: 255, reps: 12 },
           { weight: 255, reps: 12 },
           { weight: 255, reps: 12 },
+          { weight: 255, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -12997,6 +13218,9 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
         ],
         supersetId: 'SS2',
@@ -13022,9 +13246,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -13466,6 +13691,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
           { weight: 80, reps: 12 },
@@ -14279,6 +14505,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
+          { weight: 60, reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -14303,9 +14531,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -14747,6 +14976,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
           { weight: 60, reps: 12 },
@@ -15560,6 +15790,8 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -15584,9 +15816,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -16028,6 +16261,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
           { reps: 12 },
@@ -16834,6 +17068,7 @@ export const sampleTemplates = [
         restTime: 90,
         sets: [
           { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS2',
       },
@@ -16847,6 +17082,7 @@ export const sampleTemplates = [
           { weight: 85, reps: 15 },
           { weight: 85, reps: 15 },
           { weight: 85, reps: 15 },
+          { weight: 85, reps: 15 },
         ],
         supersetId: 'SS3',
       },
@@ -16857,9 +17093,10 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 60,
         sets: [
-          { reps: 15 },
-          { reps: 15 },
-          { reps: 15 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
+          { reps: 12 },
         ],
         supersetId: 'SS3',
       },
@@ -17290,6 +17527,7 @@ export const sampleTemplates = [
         phase: 'workout',
         restTime: 90,
         sets: [
+          { reps: 12 },
           { reps: 12 },
           { reps: 12 },
         ],
