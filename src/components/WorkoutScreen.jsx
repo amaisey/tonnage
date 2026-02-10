@@ -468,6 +468,20 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       setExpectedNext(newExpected);
       setLastCompletionTimestamp(now);
 
+      // Bug #17: If the new expected set was previously frozen (e.g. skipped then looped back via superset),
+      // clear its frozen value so the live timer takes over instead of showing a stale frozen time
+      if (newExpected) {
+        setFrozenElapsed(prev => {
+          const key = `${newExpected.exIndex}-${newExpected.setIndex}`;
+          if (prev[key] !== undefined) {
+            const copy = { ...prev };
+            delete copy[key];
+            return copy;
+          }
+          return prev;
+        });
+      }
+
       // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
       if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
         // Bug #2/#16: Use the just-completed exercise's rest time for the timer
