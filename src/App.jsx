@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Icons } from './components/Icons';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { defaultExercises } from './data/defaultExercises';
-import { defaultFolders, sampleTemplates } from './data/defaultTemplates';
+import { defaultFolders, sampleTemplates, TEMPLATE_VERSION } from './data/defaultTemplates';
 import { WorkoutScreen } from './components/WorkoutScreen';
 import { ExercisesScreen } from './components/ExercisesScreen';
 import { TemplatesScreen } from './components/TemplatesScreen';
@@ -29,6 +29,19 @@ function App() {
   // Bug #3: Compact mode
   const [compactMode, setCompactMode] = useLocalStorage('compactMode', false);
   const lastScrollY = useRef(0);
+
+  // Template version check: refresh cached templates when defaults are updated
+  useEffect(() => {
+    try {
+      const storedVersion = parseInt(localStorage.getItem('template-version') || '0', 10);
+      if (storedVersion < TEMPLATE_VERSION) {
+        setTemplates(sampleTemplates);
+        setFolders(defaultFolders);
+        localStorage.setItem('template-version', String(TEMPLATE_VERSION));
+        console.log(`Templates updated from v${storedVersion} to v${TEMPLATE_VERSION}`);
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
 
   // Reset navbar and numpad state when there's no active workout (empty state shouldn't hide navbar)
   useEffect(() => {

@@ -1,4 +1,6 @@
 // Tonnage Default Templates - Examples + Shoulder & Back Correcting Course
+// Bump this version whenever default templates are updated to force a cache refresh
+export const TEMPLATE_VERSION = 2;
 
 export const defaultFolders = [
   // Examples - Organized by workout split type
