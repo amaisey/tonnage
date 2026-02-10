@@ -97,9 +97,16 @@ function App() {
       template.exercises.map(async (ex) => {
         const prevData = await getPreviousData(ex.name);
         // Mark all pre-filled values as proposed (50% opacity) until user edits them
-        const sets = prevData?.sets?.length > 0
-          ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false }))
-          : ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
+        // Use the TEMPLATE's set count as authority, fill values from previous data where available
+        const templateSets = ex.sets;
+        const sets = templateSets.map((templateSet, idx) => {
+          const prevSet = prevData?.sets?.[idx];
+          if (prevSet) {
+            // Merge previous values onto the template set (previous weight/reps, template structure)
+            return { ...templateSet, ...prevSet, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false };
+          }
+          return { ...templateSet, completed: false, proposed: true, manuallyEdited: false };
+        });
         return {
           ...ex,
           // Use previous rest time if available, otherwise template's, otherwise default
