@@ -96,23 +96,13 @@ function App() {
     const exercisesWithPrevData = await Promise.all(
       template.exercises.map(async (ex) => {
         const prevData = await getPreviousData(ex.name);
-        // Mark all pre-filled values as proposed (50% opacity) until user edits them
-        // Use the TEMPLATE's set count as authority, fill values from previous data where available
-        const templateSets = ex.sets;
-        const sets = templateSets.map((templateSet, idx) => {
-          const prevSet = prevData?.sets?.[idx];
-          if (prevSet) {
-            // Merge previous values onto the template set (previous weight/reps, template structure)
-            return { ...templateSet, ...prevSet, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false };
-          }
-          return { ...templateSet, completed: false, proposed: true, manuallyEdited: false };
-        });
+        // Template is the source of truth for set count, values, and rest times.
+        // Previous data is only used for the PREV column display.
+        const sets = ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
         return {
           ...ex,
-          // Use previous rest time if available, otherwise template's, otherwise default
-          restTime: prevData?.restTime || ex.restTime || 90,
-          // Preserve previous notes if they exist
-          notes: prevData?.notes || ex.notes || '',
+          restTime: ex.restTime ?? 90,
+          notes: ex.notes || '',
           sets,
           previousSets: prevData?.sets
         };
