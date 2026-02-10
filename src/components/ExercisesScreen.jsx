@@ -373,12 +373,69 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
 };
 
 // Import Modal with error handling
+const AI_CONTEXT_PROMPT = `I need you to create workout templates in JSON format for my workout tracking app called Tonnage. Output ONLY valid JSON — no markdown, no explanation, no code fences.
+
+FORMAT:
+- Single workout: {"name": "...", "exercises": [...]}
+- Multiple workouts: {"templates": [{"name": "...", "folder": "Program/Week 1", "exercises": [...]}, ...]}
+
+TEMPLATE FIELDS:
+- name (required, string): Workout name
+- exercises (required, array): Array of exercise objects
+- notes (optional, string): Workout notes/instructions
+- estimatedTime (optional, number): Estimated minutes
+- folder (optional, string): Folder path using "/" for nesting (e.g. "Push Pull Legs/Week 1")
+
+EXERCISE FIELDS:
+- name (required, string): Exercise name
+- bodyPart (required, string): One of: Arms, Back, Cardio, Chest, Core, Full Body, Legs, Olympic, Shoulders, Other
+- category (required, string): Determines input fields per set (see categories below)
+- sets (required, array): Array of set objects matching the category
+- phase (optional, string): "warmup", "workout" (default), or "cooldown" — creates collapsible sections
+- restTime (optional, number): Rest time in seconds (default 90). Use 0 between superset exercises.
+- supersetId (optional, string): Matching string links exercises into a superset. Superset exercises MUST have the same number of sets.
+- notes (optional, string): Exercise-specific notes
+- highlight (optional, boolean): Mark as priority exercise
+
+CATEGORIES AND SET FIELDS:
+- "barbell": { "weight": 135, "reps": 10 }
+- "dumbbell": { "weight": 25, "reps": 12 }
+- "machine": { "weight": 100, "reps": 10 }
+- "weighted_bodyweight": { "weight": 25, "reps": 8 } (e.g. weighted pull-ups)
+- "assisted_bodyweight": { "assistedWeight": 50, "reps": 8 } (e.g. assisted pull-ups)
+- "reps_only": { "reps": 15 } (e.g. push-ups, crunches)
+- "cardio": { "distance": 1.5, "duration": 600 } (miles, seconds)
+- "duration": { "duration": 60 } (seconds — for planks, stretches)
+- "band": { "bandColor": "red", "reps": 15 } (colors: yellow, orange, red, green, blue, black, purple)
+
+REST TIME GUIDELINES:
+- Warm-up: 0-30s
+- Isolation/accessory: 60s
+- Standard compound: 90-120s
+- Heavy compound (squat/bench/deadlift): 180s
+- Max effort: 300s
+
+SUPERSET RULES:
+- Give exercises the same supersetId to link them
+- All exercises in a superset MUST have the same number of sets
+- Set restTime to 0 on all but the LAST exercise in the superset (the last one's restTime is the rest between rounds)
+
+STRUCTURE GUIDELINES:
+- Include warmup phase (2-4 light exercises), workout phase (main lifts), and cooldown phase (stretches/foam rolling)
+- Use progressive sets for strength work (e.g. pyramid or reverse pyramid)
+- Pair opposing muscle groups in supersets for efficiency
+- Estimate time: ~45 sec per set + rest time
+
+EXAMPLE:
+{"name":"Push Day","notes":"Focus on chest progression","estimatedTime":55,"folder":"PPL Program","exercises":[{"name":"Arm Circles","bodyPart":"Shoulders","category":"reps_only","phase":"warmup","restTime":0,"sets":[{"reps":20}]},{"name":"Bench Press","bodyPart":"Chest","category":"barbell","phase":"workout","restTime":180,"sets":[{"weight":135,"reps":10},{"weight":185,"reps":8},{"weight":205,"reps":6},{"weight":205,"reps":6}]},{"name":"Incline DB Press","bodyPart":"Chest","category":"dumbbell","phase":"workout","supersetId":"SS1","restTime":0,"sets":[{"weight":50,"reps":10},{"weight":50,"reps":10},{"weight":50,"reps":10}]},{"name":"Face Pull","bodyPart":"Shoulders","category":"machine","phase":"workout","supersetId":"SS1","restTime":90,"sets":[{"weight":30,"reps":15},{"weight":30,"reps":15},{"weight":30,"reps":15}]},{"name":"Chest Stretch","bodyPart":"Chest","category":"duration","phase":"cooldown","restTime":0,"sets":[{"duration":60}]}]}`;
+
 const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, onImport, onBulkImport, onUpdateTemplate, onAddExercises, existingExercises, existingTemplates, onClose }) => {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [addNewExercises, setAddNewExercises] = useState(true);
   const [pendingImport, setPendingImport] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const getOrCreateFolderByPath = (folderPath, allFolders, newFoldersToAdd) => {
     if (!folderPath) return currentFolderId;
@@ -526,7 +583,13 @@ const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, 
           <h3 className="text-lg font-semibold text-white">Import Workouts</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
         </div>
-        <p className="text-xs text-gray-400 mb-3">Paste a single workout or bulk import with folders.</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-400">Paste a single workout or bulk import with folders.</p>
+          <button onClick={() => { navigator.clipboard.writeText(AI_CONTEXT_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+            className="text-xs text-teal-400 hover:text-teal-300 whitespace-nowrap ml-3 flex items-center gap-1 shrink-0">
+            {copied ? '✓ Copied!' : <><Icons.Copy /> AI Prompt</>}
+          </button>
+        </div>
         {error && <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-3"><div className="text-sm text-red-400">❌ {error}</div></div>}
         {success && <div className="bg-green-900/30 border border-green-700 rounded-lg p-3 mb-3"><div className="text-sm text-green-400">✅ {success}</div></div>}
         <textarea value={text} onChange={e => { setText(e.target.value); setError(''); }} placeholder='{"name": "Push Day", "exercises": [...]}'
