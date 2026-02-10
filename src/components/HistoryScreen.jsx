@@ -9,6 +9,7 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [stravaCopied, setStravaCopied] = useState(false);
+  const [jsonCopied, setJsonCopied] = useState(false); // Bug #16: React state for copy button
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -230,14 +231,19 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
         </button>
 
         <button onClick={async () => {
-          await navigator.clipboard.writeText(exportWorkoutJSON(workout));
-          const btn = document.activeElement;
-          btn.textContent = '✓ Copied!';
-          setTimeout(() => {
-            btn.innerHTML = '<span class="flex items-center justify-center gap-2">Copy Workout JSON</span>';
-          }, 1500);
-        }} className="w-full bg-teal-600 text-white py-3 rounded-xl font-medium hover:bg-teal-700 flex items-center justify-center gap-2">
-          <Icons.Export /> Copy Workout JSON
+          try {
+            await navigator.clipboard.writeText(exportWorkoutJSON(workout));
+            setJsonCopied(true);
+            setTimeout(() => setJsonCopied(false), 2000);
+          } catch (err) {
+            console.error('Clipboard write failed:', err);
+          }
+        }} className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
+          jsonCopied
+            ? 'bg-green-600 text-white'
+            : 'bg-teal-600 text-white hover:bg-teal-700'
+        }`}>
+          {jsonCopied ? '✓ Copied!' : <><Icons.Export /> Copy Workout JSON</>}
         </button>
       </div>
 
@@ -281,53 +287,9 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
       try {
         const workouts = await workoutDb.getAll();
 
-        // Auto-import if database is empty
-        if (workouts.length === 0) {
-          console.log('No workouts found, auto-importing history...');
-          setShowImport(true);
-          setImportStatus({ message: 'First load - importing workout history...', progress: 0 });
-          setImporting(true);
-
-          try {
-            const { importedHistoryWithPhases } = await import('../data/importedHistoryWithPhases');
-            const total = importedHistoryWithPhases.length;
-            let imported = 0;
-
-            for (let i = 0; i < total; i++) {
-              try {
-                await workoutDb.add(importedHistoryWithPhases[i]);
-                imported++;
-              } catch (err) {
-                // Skip duplicates or errors
-              }
-              if (i % 100 === 0) {
-                setImportStatus({ message: `Importing... ${imported}/${total}`, progress: (i / total) * 100 });
-              }
-            }
-
-            setImportStatus({ message: `Imported ${imported} workouts!`, progress: 100, done: true });
-
-            // Reload after import
-            const importedWorkouts = await workoutDb.getAll();
-            importedWorkouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
-            setHistory(importedWorkouts);
-
-            // Auto-dismiss after 2 seconds
-            setTimeout(() => {
-              setImportStatus(null);
-              setShowImport(false);
-            }, 2000);
-
-          } catch (importErr) {
-            console.error('Auto-import failed:', importErr);
-            setImportStatus(null);
-            setShowImport(false);
-          }
-          setImporting(false);
-        } else {
-          workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
-          setHistory(workouts);
-        }
+        // Sort and set history (no auto-import — users import via Settings)
+        workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+        setHistory(workouts);
       } catch (err) {
         console.error('Error loading history:', err);
       }
@@ -336,61 +298,7 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
     loadHistory();
   }, [onRefreshNeeded]);
 
-  // Import Strong history with phases
-  const importStrongHistory = async (replace = false) => {
-    setImporting(true);
-    setImportStatus({ message: 'Loading history data...', progress: 0 });
-
-    try {
-      // Dynamically import the history with phases
-      const { importedHistoryWithPhases } = await import('../data/importedHistoryWithPhases');
-
-      if (replace) {
-        setImportStatus({ message: 'Clearing existing history...', progress: 10 });
-        const existing = await workoutDb.getAll();
-        for (let i = 0; i < existing.length; i++) {
-          await workoutDb.delete(existing[i].id);
-          if (i % 100 === 0) {
-            setImportStatus({ message: `Clearing... ${i}/${existing.length}`, progress: 10 + (i / existing.length) * 20 });
-          }
-        }
-      }
-
-      setImportStatus({ message: 'Importing workouts...', progress: 30 });
-
-      let imported = 0;
-      const total = importedHistoryWithPhases.length;
-
-      for (let i = 0; i < total; i++) {
-        try {
-          await workoutDb.add(importedHistoryWithPhases[i]);
-          imported++;
-        } catch (err) {
-          console.warn(`Failed to import workout ${i}:`, err);
-        }
-
-        if (i % 50 === 0 || i === total - 1) {
-          setImportStatus({
-            message: `Importing... ${imported}/${total}`,
-            progress: 30 + (i / total) * 65
-          });
-        }
-      }
-
-      setImportStatus({ message: `Successfully imported ${imported} workouts!`, progress: 100, done: true });
-
-      // Reload history
-      const workouts = await workoutDb.getAll();
-      workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
-      setHistory(workouts);
-
-    } catch (err) {
-      console.error('Import error:', err);
-      setImportStatus({ message: `Error: ${err.message}`, error: true });
-    }
-
-    setImporting(false);
-  };
+  // Legacy importStrongHistory removed — history import is now in Settings
 
   // Parse CSV from Strong app format
   const parseStrongCSV = (csvText) => {

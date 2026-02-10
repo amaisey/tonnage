@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { EditExerciseModal, ExerciseSearchModal } from './SharedComponents';
+import { EditExerciseModal, ExerciseSearchModal, ExerciseDetailModal } from './SharedComponents';
 import { workoutDb } from '../db/workoutDb';
 
 const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, onScroll, navVisible }) => {
@@ -113,329 +113,13 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
   );
 };
 
-// Background images mapped to exercise categories
-const CATEGORY_BACKGROUNDS = {
-  barbell: '/backgrounds/bg-1.jpg',
-  dumbbell: '/backgrounds/bg-3.jpg',
-  machine: '/backgrounds/bg-8.jpg',
-  weighted_bodyweight: '/backgrounds/bg-6.jpg',
-  assisted_bodyweight: '/backgrounds/bg-7.jpg',
-  reps_only: '/backgrounds/bg-4.jpg',
-  cardio: '/backgrounds/bg-5.jpg',
-  duration: '/backgrounds/bg-4.jpg',
-  band: '/backgrounds/bg-9.jpg',
-};
-
-// Exercise Detail Modal with About, History, Charts, Records tabs
-const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
-  const [activeTab, setActiveTab] = useState('about');
-  const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-1.jpg';
-
-  // Get all instances of this exercise from history
-  const exerciseHistory = history.flatMap(workout =>
-    workout.exercises
-      .filter(ex => ex.name === exercise.name)
-      .map(ex => ({
-        ...ex,
-        workoutDate: workout.startTime,
-        workoutName: workout.name
-      }))
-  ).sort((a, b) => b.workoutDate - a.workoutDate);
-
-  // Calculate records
-  const records = {
-    maxWeight: 0,
-    maxReps: 0,
-    maxVolume: 0,
-    maxDuration: 0,
-    maxDistance: 0,
-    totalSets: 0,
-    totalVolume: 0,
-  };
-
-  exerciseHistory.forEach(ex => {
-    ex.sets.filter(s => s.completed).forEach(set => {
-      records.totalSets++;
-      if (set.weight) {
-        records.maxWeight = Math.max(records.maxWeight, set.weight);
-        const volume = (set.weight || 0) * (set.reps || 0);
-        records.maxVolume = Math.max(records.maxVolume, volume);
-        records.totalVolume += volume;
-      }
-      if (set.reps) records.maxReps = Math.max(records.maxReps, set.reps);
-      if (set.duration) records.maxDuration = Math.max(records.maxDuration, set.duration);
-      if (set.distance) records.maxDistance = Math.max(records.maxDistance, set.distance);
-    });
-  });
-
-  const tabs = [
-    { id: 'about', label: 'About' },
-    { id: 'history', label: 'History' },
-    { id: 'charts', label: 'Charts' },
-    { id: 'records', label: 'Records' },
-  ];
-
-  return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Hero Header with Background Image */}
-      <div className="relative h-48 flex-shrink-0">
-        <img src={backgroundImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black"></div>
-        <div className="relative z-10 h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="px-4 py-3 flex items-center justify-between">
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 border border-white/20"><Icons.X /></button>
-            <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>
-          </div>
-          <div className="flex-1 flex flex-col justify-end p-4">
-            <h2 className="text-2xl font-bold text-white drop-shadow-lg">{exercise.name}</h2>
-            <p className="text-white/80 text-sm">{exercise.bodyPart} • {CATEGORIES[exercise.category]?.label}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex bg-white/5 backdrop-blur-sm border-b border-white/10">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'text-white border-b-2 border-white' : 'text-white/50'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 bg-black" style={{ overscrollBehavior: 'contain' }}>
-        {activeTab === 'about' && (
-          <div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-4 border border-white/20">
-              <h3 className="text-sm font-semibold text-white/60 mb-3">Quick Stats</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/10 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-white">{exerciseHistory.length}</div>
-                  <div className="text-xs text-white/60">Times Performed</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-white">{records.totalSets}</div>
-                  <div className="text-xs text-white/60">Total Sets</div>
-                </div>
-                {records.maxWeight > 0 && (
-                  <div className="bg-white/10 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-white">{records.maxWeight}</div>
-                    <div className="text-xs text-white/60">Max Weight (lbs)</div>
-                  </div>
-                )}
-                {records.maxReps > 0 && (
-                  <div className="bg-white/10 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-white">{records.maxReps}</div>
-                    <div className="text-xs text-white/60">Max Reps</div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <h3 className="text-sm font-semibold text-white/60 mb-2">Instructions</h3>
-              <p className="text-white/80 text-sm">
-                {exercise.instructions || "No instructions added yet. Tap Edit to add instructions for this exercise."}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div>
-            {exerciseHistory.length === 0 ? (
-              <div className="text-center text-white/50 py-8">No history for this exercise yet</div>
-            ) : (
-              exerciseHistory.map((ex, i) => (
-                <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-3 border border-white/20">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="font-medium text-white">{ex.workoutName}</div>
-                    <div className="text-xs text-white/50">{new Date(ex.workoutDate).toLocaleDateString()}</div>
-                  </div>
-                  <div className="space-y-1">
-                    {ex.sets.filter(s => s.completed).map((set, j) => (
-                      <div key={j} className="flex items-center gap-2 text-sm">
-                        <span className="text-white/40 w-6">{j + 1}</span>
-                        {set.weight !== undefined && <span className="text-white">{set.weight} lbs</span>}
-                        {set.reps !== undefined && <span className="text-white/60">× {set.reps}</span>}
-                        {set.duration !== undefined && <span className="text-white">{formatDuration(set.duration)}</span>}
-                        {set.distance !== undefined && <span className="text-white">{set.distance} km</span>}
-                        {set.bandColor && <span className={`${BAND_COLORS[set.bandColor]?.bg} ${BAND_COLORS[set.bandColor]?.text} px-2 py-0.5 rounded text-xs`}>{set.bandColor}</span>}
-                        {set.rpe && <span className="text-white/70 text-xs bg-white/10 px-2 py-0.5 rounded">RPE {set.rpe}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {activeTab === 'charts' && (
-          <div>
-            {exerciseHistory.length === 0 ? (
-              <div className="text-center text-white/50 py-8">Complete this exercise to see charts</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <h3 className="text-sm font-semibold text-white/60 mb-4">Max Weight Over Time</h3>
-                  <div className="flex items-end gap-1 h-32">
-                    {exerciseHistory.slice(0, 10).reverse().map((ex, i) => {
-                      const maxW = Math.max(...ex.sets.filter(s => s.completed && s.weight).map(s => s.weight), 0);
-                      const heightPct = records.maxWeight > 0 ? (maxW / records.maxWeight) * 100 : 0;
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full bg-rose-600 rounded-t" style={{ height: `${heightPct}%`, minHeight: maxW > 0 ? '4px' : '0' }}></div>
-                          <span className="text-xs text-white/40">{new Date(ex.workoutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <h3 className="text-sm font-semibold text-white/60 mb-4">Volume Over Time</h3>
-                  <div className="flex items-end gap-1 h-32">
-                    {exerciseHistory.slice(0, 10).reverse().map((ex, i) => {
-                      const vol = ex.sets.filter(s => s.completed).reduce((acc, s) => acc + (s.weight || 0) * (s.reps || 0), 0);
-                      const maxVol = Math.max(...exerciseHistory.map(e => e.sets.filter(s => s.completed).reduce((a, s) => a + (s.weight || 0) * (s.reps || 0), 0)));
-                      const heightPct = maxVol > 0 ? (vol / maxVol) * 100 : 0;
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full bg-teal-500 rounded-t" style={{ height: `${heightPct}%`, minHeight: vol > 0 ? '4px' : '0' }}></div>
-                          <span className="text-xs text-white/40">{new Date(ex.workoutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'records' && (
-          <div>
-            {exerciseHistory.length === 0 ? (
-              <div className="text-center text-white/50 py-8">Complete this exercise to see records</div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {records.maxWeight > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{records.maxWeight}</div>
-                    <div className="text-xs text-white/50 mt-1">Max Weight (lbs)</div>
-                  </div>
-                )}
-                {records.maxReps > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{records.maxReps}</div>
-                    <div className="text-xs text-white/50 mt-1">Max Reps</div>
-                  </div>
-                )}
-                {records.maxVolume > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{records.maxVolume.toLocaleString()}</div>
-                    <div className="text-xs text-white/50 mt-1">Max Volume (lbs)</div>
-                  </div>
-                )}
-                {records.totalVolume > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{records.totalVolume.toLocaleString()}</div>
-                    <div className="text-xs text-white/50 mt-1">Total Volume (lbs)</div>
-                  </div>
-                )}
-                {records.maxDuration > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{formatDuration(records.maxDuration)}</div>
-                    <div className="text-xs text-white/50 mt-1">Max Duration</div>
-                  </div>
-                )}
-                {records.maxDistance > 0 && (
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                    <div className="text-3xl font-bold text-white">{records.maxDistance}</div>
-                    <div className="text-xs text-white/50 mt-1">Max Distance (km)</div>
-                  </div>
-                )}
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                  <div className="text-3xl font-bold text-white">{records.totalSets}</div>
-                  <div className="text-xs text-white/50 mt-1">Total Sets</div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/20">
-                  <div className="text-3xl font-bold text-white">{exerciseHistory.length}</div>
-                  <div className="text-xs text-white/50 mt-1">Times Performed</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // Import Modal with error handling
-const AI_CONTEXT_PROMPT = `I need you to create workout templates in JSON format for my workout tracking app called Tonnage. Output ONLY valid JSON — no markdown, no explanation, no code fences.
-
-FORMAT:
-- Single workout: {"name": "...", "exercises": [...]}
-- Multiple workouts: {"templates": [{"name": "...", "folder": "Program/Week 1", "exercises": [...]}, ...]}
-
-TEMPLATE FIELDS:
-- name (required, string): Workout name
-- exercises (required, array): Array of exercise objects
-- notes (optional, string): Workout notes/instructions
-- estimatedTime (optional, number): Estimated minutes
-- folder (optional, string): Folder path using "/" for nesting (e.g. "Push Pull Legs/Week 1")
-
-EXERCISE FIELDS:
-- name (required, string): Exercise name
-- bodyPart (required, string): One of: Arms, Back, Cardio, Chest, Core, Full Body, Legs, Olympic, Shoulders, Other
-- category (required, string): Determines input fields per set (see categories below)
-- sets (required, array): Array of set objects matching the category
-- phase (optional, string): "warmup", "workout" (default), or "cooldown" — creates collapsible sections
-- restTime (optional, number): Rest time in seconds (default 90). Use 0 between superset exercises.
-- supersetId (optional, string): Matching string links exercises into a superset. Superset exercises MUST have the same number of sets.
-- notes (optional, string): Exercise-specific notes
-- highlight (optional, boolean): Mark as priority exercise
-
-CATEGORIES AND SET FIELDS:
-- "barbell": { "weight": 135, "reps": 10 }
-- "dumbbell": { "weight": 25, "reps": 12 }
-- "machine": { "weight": 100, "reps": 10 }
-- "weighted_bodyweight": { "weight": 25, "reps": 8 } (e.g. weighted pull-ups)
-- "assisted_bodyweight": { "assistedWeight": 50, "reps": 8 } (e.g. assisted pull-ups)
-- "reps_only": { "reps": 15 } (e.g. push-ups, crunches)
-- "cardio": { "distance": 1.5, "duration": 600 } (miles, seconds)
-- "duration": { "duration": 60 } (seconds — for planks, stretches)
-- "band": { "bandColor": "red", "reps": 15 } (colors: yellow, orange, red, green, blue, black, purple)
-
-REST TIME GUIDELINES:
-- Warm-up: 0-30s
-- Isolation/accessory: 60s
-- Standard compound: 90-120s
-- Heavy compound (squat/bench/deadlift): 180s
-- Max effort: 300s
-
-SUPERSET RULES:
-- Give exercises the same supersetId to link them
-- All exercises in a superset MUST have the same number of sets
-- Set restTime to 0 on all but the LAST exercise in the superset (the last one's restTime is the rest between rounds)
-
-STRUCTURE GUIDELINES:
-- Include warmup phase (2-4 light exercises), workout phase (main lifts), and cooldown phase (stretches/foam rolling)
-- Use progressive sets for strength work (e.g. pyramid or reverse pyramid)
-- Pair opposing muscle groups in supersets for efficiency
-- Estimate time: ~45 sec per set + rest time
-
-EXAMPLE:
-{"name":"Push Day","notes":"Focus on chest progression","estimatedTime":55,"folder":"PPL Program","exercises":[{"name":"Arm Circles","bodyPart":"Shoulders","category":"reps_only","phase":"warmup","restTime":0,"sets":[{"reps":20}]},{"name":"Bench Press","bodyPart":"Chest","category":"barbell","phase":"workout","restTime":180,"sets":[{"weight":135,"reps":10},{"weight":185,"reps":8},{"weight":205,"reps":6},{"weight":205,"reps":6}]},{"name":"Incline DB Press","bodyPart":"Chest","category":"dumbbell","phase":"workout","supersetId":"SS1","restTime":0,"sets":[{"weight":50,"reps":10},{"weight":50,"reps":10},{"weight":50,"reps":10}]},{"name":"Face Pull","bodyPart":"Shoulders","category":"machine","phase":"workout","supersetId":"SS1","restTime":90,"sets":[{"weight":30,"reps":15},{"weight":30,"reps":15},{"weight":30,"reps":15}]},{"name":"Chest Stretch","bodyPart":"Chest","category":"duration","phase":"cooldown","restTime":0,"sets":[{"duration":60}]}]}`;
-
 const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, onImport, onBulkImport, onUpdateTemplate, onAddExercises, existingExercises, existingTemplates, onClose }) => {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [addNewExercises, setAddNewExercises] = useState(true);
   const [pendingImport, setPendingImport] = useState(null);
-  const [copied, setCopied] = useState(false);
 
   const getOrCreateFolderByPath = (folderPath, allFolders, newFoldersToAdd) => {
     if (!folderPath) return currentFolderId;
@@ -482,11 +166,35 @@ const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, 
     return parts.join('/');
   };
 
+  // Bug #16: Handle file picker for template import
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.text();
+      setText(content);
+      setError('');
+    } catch (err) {
+      setError('Failed to read file: ' + err.message);
+    }
+  };
+
+  // Bug #16: Sanitize smart quotes and other iOS text substitutions before JSON parse
+  const sanitizeJSON = (input) => {
+    return input
+      .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // Smart double quotes → straight
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")  // Smart single quotes → straight
+      .replace(/\u2014/g, '-')  // Em dash → hyphen
+      .replace(/\u2013/g, '-')  // En dash → hyphen
+      .replace(/\u2026/g, '...'); // Ellipsis → three dots
+  };
+
   const handleImport = () => {
     setError(''); setSuccess(''); setPendingImport(null);
     if (!text.trim()) { setError('Please paste JSON data'); return; }
     try {
-      const data = JSON.parse(text);
+      const sanitized = sanitizeJSON(text);
+      const data = JSON.parse(sanitized);
       let allFolders = [...folders];
       let newFoldersToAdd = [];
       const processTemplates = (templatesData) => {
@@ -516,7 +224,7 @@ const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, 
       const exercisesToAdd = addNewExercises ? collectNewExercises(templatesData) : [];
       if (duplicates.length > 0) { setPendingImport({ duplicates, newTemplates, foldersToAdd: newFoldersToAdd, exercisesToAdd }); }
       else { executeImport(newTemplates, [], newFoldersToAdd, exercisesToAdd); }
-    } catch (err) { setError(`Invalid JSON: ${err.message}`); }
+    } catch (err) { setError(`Invalid JSON: ${err.message}. If you copied from a phone, try using the "Choose File" option instead.`); }
   };
 
   const executeImport = (newTemplates, templatesToUpdate, foldersToAdd, exercisesToAdd) => {
@@ -583,15 +291,15 @@ const ImportModal = ({ folders, currentFolderId, onAddFolder, onBulkAddFolders, 
           <h3 className="text-lg font-semibold text-white">Import Workouts</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
         </div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-gray-400">Paste a single workout or bulk import with folders.</p>
-          <button onClick={() => { navigator.clipboard.writeText(AI_CONTEXT_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="text-xs text-teal-400 hover:text-teal-300 whitespace-nowrap ml-3 flex items-center gap-1 shrink-0">
-            {copied ? '✓ Copied!' : <><Icons.Copy /> AI Prompt</>}
-          </button>
-        </div>
+        <p className="text-xs text-gray-400 mb-3">Paste a single workout or bulk import with folders.</p>
         {error && <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-3"><div className="text-sm text-red-400">❌ {error}</div></div>}
         {success && <div className="bg-green-900/30 border border-green-700 rounded-lg p-3 mb-3"><div className="text-sm text-green-400">✅ {success}</div></div>}
+        {/* Bug #16: File picker for template import (avoids mobile paste issues) */}
+        <label className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-dashed border-gray-600 hover:border-teal-500 cursor-pointer bg-gray-800/50 mb-3 transition-colors">
+          <input type="file" accept=".json" onChange={handleFileSelect} className="hidden" />
+          <Icons.Import />
+          <span className="text-sm text-gray-400">Choose JSON File</span>
+        </label>
         <textarea value={text} onChange={e => { setText(e.target.value); setError(''); }} placeholder='{"name": "Push Day", "exercises": [...]}'
           className="flex-1 min-h-[200px] bg-gray-800 text-white p-3 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-600 resize-none mb-3" />
         <label className="flex items-center gap-3 mb-4 cursor-pointer">

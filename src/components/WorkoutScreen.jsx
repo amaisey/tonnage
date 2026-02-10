@@ -1,55 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES, SUPERSET_COLORS } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
-
-// Web Audio API sound utilities - works even on silent mode on most devices
-const audioCtxRef = { current: null };
-const getAudioContext = () => {
-  if (!audioCtxRef.current) {
-    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtxRef.current.state === 'suspended') {
-    audioCtxRef.current.resume();
-  }
-  return audioCtxRef.current;
-};
-
-const playTimerDoneSound = () => {
-  try {
-    const ctx = getAudioContext();
-    // 3-beep notification pattern
-    [0, 0.25, 0.5].forEach(delay => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.15);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.15);
-    });
-  } catch (e) { /* audio not available */ }
-};
-
-const playSetCompleteSound = () => {
-  try {
-    const ctx = getAudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 660;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.08);
-  } catch (e) { /* audio not available */ }
-};
+import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, ExerciseDetailModal, RestTimerBanner } from './SharedComponents';
 
 const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll, compactMode }) => {
   // Bug #3: Compact mode class helper
@@ -60,6 +13,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
+  const [showExerciseDetailModal, setShowExerciseDetailModal] = useState(null); // { exercise, history }
+  const [exerciseDetailHistory, setExerciseDetailHistory] = useState([]);
   const [bandPickerState, setBandPickerState] = useState(null); // { exIndex, setIndex, currentColor }
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState(null); // exercise index pending deletion
   const [collapsedPhases, setCollapsedPhases] = useState({}); // which phases are collapsed
@@ -159,13 +114,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     };
   }, [activeWorkout]);
 
-  // Unlock AudioContext on first user interaction (required for iOS)
-  useEffect(() => {
-    const unlock = () => { getAudioContext(); document.removeEventListener('touchstart', unlock); };
-    document.addEventListener('touchstart', unlock, { once: true });
-    return () => document.removeEventListener('touchstart', unlock);
-  }, []);
-
   // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
   const getPreviousExerciseData = (exerciseName) => {
     if (!history || history.length === 0) return null;
@@ -191,11 +139,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
       const remaining = Math.max(0, restTimer.totalTime - elapsed);
       if (remaining === 0) {
-        // Vibrate + Web Audio API beep (doesn't pause music like HTML5 Audio)
+        // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 300]);
         }
-        playTimerDoneSound();
         setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
         return;
       }
@@ -208,8 +155,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
   const startRestTimer = (exerciseName, restTime) => {
-    const time = restTime ?? 90;
-    if (time <= 0) return; // Don't start a rest timer for exercises with 0 rest
+    const time = restTime ?? 90; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
+    if (time <= 0) return; // Don't start timer for 0-rest exercises (supersets)
     setRestTimer({ active: true, time, totalTime: time, startedAt: Date.now(), exerciseName });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
@@ -283,10 +230,34 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return true; // Different exercises / not in superset = rest timer
   };
 
-  // Bug #2: Get the rest time that should display above a given exercise/set
-  // For set 0 of an exercise, use the PREVIOUS exercise's rest time
+  // Bug #2/#16: Get the rest time that should display above a given exercise/set
+  // Superset-aware: exercises within a superset (non-last) always show 0
   const getDisplayRestTime = (exIndex, setIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
+
+    // If this exercise is in a superset and is NOT the last exercise in the superset, rest is always 0
+    if (exercise.supersetId) {
+      const supersetExercises = activeWorkout.exercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => ex.supersetId === exercise.supersetId);
+      const posInSuperset = supersetExercises.findIndex(({ idx }) => idx === exIndex);
+      if (posInSuperset < supersetExercises.length - 1) {
+        return 0; // Non-last superset exercises always have 0 rest
+      }
+      // Last exercise in superset: use its own rest time
+      if (setIndex > 0) return exercise.restTime ?? 90;
+      // For set 0 of last-in-superset, use the rest time before the superset started
+      if (exIndex > 0) {
+        // Find the first exercise in this superset, then look at the exercise before it
+        const firstInSuperset = supersetExercises[0].idx;
+        if (firstInSuperset > 0) {
+          return activeWorkout.exercises[firstInSuperset - 1].restTime ?? 90;
+        }
+      }
+      return exercise.restTime ?? 90;
+    }
+
+    // Non-superset exercise
     if (setIndex > 0) return exercise.restTime ?? 90;
     // Set 0: find the previous exercise's rest time
     if (exIndex > 0) {
@@ -428,7 +399,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (set.completed) {
       const now = Date.now();
       set.completedAt = now;
-      playSetCompleteSound();
 
       // Bug #10: Check for rapid completions and redistribute time
       const recentCompletions = [];
@@ -459,15 +429,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           updated.exercises[comp.exIndex].sets[comp.setIndex].completedAt = newTime;
         });
         set.completedAt = anchorTime + (timePerSet * numSets);
-      }
 
-      // Bug #2: Freeze the elapsed time for the set being completed
-      if (lastCompletionTimestamp) {
-        const elapsed = Math.round((now - lastCompletionTimestamp) / 1000);
-        setFrozenElapsed(prev => ({
-          ...prev,
-          [`${exIndex}-${setIndex}`]: elapsed
-        }));
+        // Bug #16: After redistribution, recalculate frozenElapsed for all affected sets
+        // so display times reflect the redistributed timestamps, not stale values
+        const redistributedFrozen = {};
+        let prevTime = anchorTime;
+        recentCompletions.forEach((comp) => {
+          const newTime = updated.exercises[comp.exIndex].sets[comp.setIndex].completedAt;
+          redistributedFrozen[`${comp.exIndex}-${comp.setIndex}`] = Math.round((newTime - prevTime) / 1000);
+          prevTime = newTime;
+        });
+        redistributedFrozen[`${exIndex}-${setIndex}`] = Math.round((set.completedAt - prevTime) / 1000);
+        setFrozenElapsed(prev => ({ ...prev, ...redistributedFrozen }));
+      } else {
+        // Bug #2: Freeze the elapsed time for the set being completed (non-rapid path)
+        if (lastCompletionTimestamp) {
+          const elapsed = Math.round((now - lastCompletionTimestamp) / 1000);
+          setFrozenElapsed(prev => ({
+            ...prev,
+            [`${exIndex}-${setIndex}`]: elapsed
+          }));
+        }
       }
 
       // Bug #3/#10: If user completed a set that wasn't the expected next, freeze the skipped timer
@@ -481,40 +463,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }));
       }
 
-      // Calculate superset-aware next (used for rest timer + default navigation)
-      const supersetNext = calculateNextExpected(exIndex, setIndex);
-
-      // Smart expectedNext: if user completed an out-of-order set,
-      // first check for earlier incomplete sets in the SAME exercise,
-      // then fall through to superset-aware navigation for cross-exercise flow
-      let newExpected;
-      const hasEarlierIncomplete = exercise.sets.some((s, idx) => idx < setIndex && !s.completed);
-      if (hasEarlierIncomplete) {
-        // Same exercise has earlier incomplete sets — point back to the first one
-        const firstIncompleteIdx = exercise.sets.findIndex(s => !s.completed);
-        newExpected = firstIncompleteIdx >= 0 ? { exIndex, setIndex: firstIncompleteIdx } : supersetNext;
-      } else {
-        // No earlier incompletes in this exercise — use superset-aware navigation
-        newExpected = supersetNext;
-      }
-
-      // Final fallback: if supersetNext returned null but there are still incomplete sets
-      // anywhere in the workout, find the first one
-      if (!newExpected) {
-        for (let i = 0; i < updated.exercises.length; i++) {
-          const nextSetIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
-          if (nextSetIdx >= 0) {
-            newExpected = { exIndex: i, setIndex: nextSetIdx };
-            break;
-          }
-        }
-      }
+      // Calculate the next expected set from what was just completed
+      const newExpected = calculateNextExpected(exIndex, setIndex);
       setExpectedNext(newExpected);
       setLastCompletionTimestamp(now);
 
       // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
-      if (supersetNext && shouldStartRestTimer(exIndex, supersetNext)) {
-        // Bug #2: Use the just-completed exercise's rest time for the timer
+      if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
+        // Bug #2/#16: Use the just-completed exercise's rest time for the timer
         startRestTimer(exercise.name, exercise.restTime ?? 90);
       } else if (restTimer.active) {
         // Within superset - cancel any active rest timer
@@ -575,15 +531,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (lastSet[key] !== undefined && key !== 'completed' && key !== 'completedAt') newSet[key] = lastSet[key];
     });
     exercise.sets.push(newSet);
-    const newSetIndex = exercise.sets.length - 1;
-
-    // If expectedNext is null (all sets were complete), point timer to the new set
-    // and reset the timestamp so the elapsed counter starts fresh
-    if (!expectedNext) {
-      setExpectedNext({ exIndex, setIndex: newSetIndex });
-      setLastCompletionTimestamp(Date.now());
-    }
-
     setActiveWorkout(updated);
   };
 
@@ -757,7 +704,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (i < supersetExercises.length - 1) {
         // Save original rest time before zeroing (for restore on unlink)
         if (!ex._preSupersetRestTime) {
-          ex._preSupersetRestTime = ex.restTime ?? 90;
+          ex._preSupersetRestTime = ex.restTime || 90;
         }
         ex.restTime = 0;
       }
@@ -938,8 +885,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `${c('p-2','p-1.5')} ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `${c('p-3','p-1.5')} rounded-2xl ${c('mb-3','mb-1.5')}`} transition-transform`}>
-        <div className={`flex items-center justify-between ${c('mb-1','mb-0.5')}`}>
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `${c('p-3','p-2')} ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `${c('p-4','p-2')} rounded-2xl ${c('mb-4','mb-2')}`} transition-transform`}>
+        <div className={`flex items-center justify-between ${c('mb-2','mb-1')}`}>
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
             <button
@@ -954,7 +901,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={() => setExerciseDetail(exercise)} className={`${c('font-semibold','text-sm font-medium')} text-white hover:text-cyan-400 transition-colors text-left`}>{exercise.name}</button>
+                <button onClick={() => {
+                  setShowExerciseDetailModal(exercise);
+                  setExerciseDetailHistory(history);
+                }} className={`${c('font-semibold','text-sm font-medium')} text-white hover:text-cyan-400 transition-colors text-left`}>{exercise.name}</button>
                 {typeInfo && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
@@ -1051,7 +1001,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
 
         {/* Set headers */}
-        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-0.5 text-xs text-gray-500 uppercase px-1">
+        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
           <span>Set</span>
           <span className="text-center">Prev</span>
           {CATEGORIES[exercise.category]?.fields.length < 2 && <span></span>}
@@ -1078,8 +1028,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className={`w-full ${c('mt-1 py-0.5','mt-0.5 py-px')} rounded text-teal-400/50 hover:text-teal-400/80 hover:bg-gray-800/30 flex items-center justify-center gap-0.5 text-[10px]`}>
-          <Icons.Plus /> Add Set
+          className={`w-full ${c('mt-2 py-2','mt-1 py-1')} bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm`}>
+          <Icons.Plus /> Add Set ({formatDuration(exerciseRestTime)})
         </button>
       </div>
       {/* Bug #9: Drag insertion indicator - show after last card */}
@@ -1107,8 +1057,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (group.type === 'superset') {
       const color = getSupersetColor(group.supersetId);
       return (
-        <div key={group.supersetId} className="mb-3">
-          <div className="flex items-center gap-1.5 mb-0.5">
+        <div key={group.supersetId} className="mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <Icons.Link />
             <span className={`text-xs font-medium ${color.text} uppercase tracking-wide`}>Superset</span>
           </div>
@@ -1160,11 +1110,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onMinimize={() => setRestTimerMinimized(true)}
         onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))} />
 
-      <div className="px-4 py-2 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-lg font-bold text-white bg-transparent border-none focus:outline-none w-full" />
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
             {/* Bug #15: Pace tracking display */}
             {(() => {
               const pace = getPaceInfo();
@@ -1190,8 +1140,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         </div>
         {activeWorkout.notes && (
-          <div className="mt-1.5 bg-amber-900/20 border border-amber-700/30 rounded-lg px-3 py-1.5">
-            <div className="text-xs text-amber-400 flex items-start gap-2">
+          <div className="mt-3 bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
+            <div className="text-sm text-amber-400 flex items-start gap-2">
               <span>📋</span> <span>{activeWorkout.notes}</span>
             </div>
           </div>
@@ -1213,7 +1163,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto px-3 py-2 ${restTimer.active ? 'pt-20' : ''} ${dragState ? 'pt-2' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'
@@ -1231,10 +1181,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
 
             return (
-              <div key={phaseKey} className="mb-3">
+              <div key={phaseKey} className="mb-4">
                 <button
                   onClick={() => togglePhase(phaseKey)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl ${phaseInfo.color} mb-1.5`}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}
                 >
                   <div className="flex items-center gap-2">
                     <span>{phaseInfo.icon}</span>
@@ -1319,70 +1269,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       )}
 
       {/* Exercise Detail Modal */}
-      {exerciseDetail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setExerciseDetail(null)}>
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-white/20" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">{exerciseDetail.name}</h3>
-              <button onClick={() => setExerciseDetail(null)} className="text-gray-400 hover:text-white p-1">
-                <Icons.X />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-gray-400 text-sm w-20">Body Part</span>
-                <span className="text-white">{exerciseDetail.bodyPart}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-gray-400 text-sm w-20">Category</span>
-                <span className="text-white capitalize">{exerciseDetail.category?.replace('_', ' ')}</span>
-              </div>
-              {exerciseDetail.exerciseType && (
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-400 text-sm w-20">Type</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${EXERCISE_TYPES[exerciseDetail.exerciseType]?.color || 'bg-gray-700'}`}>
-                    {EXERCISE_TYPES[exerciseDetail.exerciseType]?.label || exerciseDetail.exerciseType}
-                  </span>
-                </div>
-              )}
-              {/* Phase selector */}
-              <div className="pt-3 border-t border-gray-800">
-                <span className="text-gray-400 text-sm block mb-2">Phase</span>
-                <div className="flex gap-1">
-                  {Object.entries(EXERCISE_PHASES).map(([key, info]) => {
-                    const exIndex = activeWorkout.exercises.findIndex(e => e.name === exerciseDetail.name && e.bodyPart === exerciseDetail.bodyPart);
-                    const currentPhase = exerciseDetail.phase || 'workout';
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          if (exIndex >= 0) {
-                            const updated = { ...activeWorkout };
-                            updated.exercises[exIndex].phase = key;
-                            setActiveWorkout(updated);
-                            setExerciseDetail({ ...exerciseDetail, phase: key });
-                          }
-                        }}
-                        className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors ${
-                          currentPhase === key
-                            ? `${info.color} text-white`
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
-                      >
-                        {info.icon} {info.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {exerciseDetail.notes && (
-                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg">
-                  <div className="text-sm text-amber-400">{exerciseDetail.notes}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {showExerciseDetailModal && (
+        <ExerciseDetailModal
+          exercise={showExerciseDetailModal}
+          history={exerciseDetailHistory}
+          onEdit={() => {
+            setExerciseDetail(showExerciseDetailModal);
+            setShowExerciseDetailModal(null);
+          }}
+          onClose={() => setShowExerciseDetailModal(null)}
+        />
       )}
 
       {/* Band Color Picker Modal */}

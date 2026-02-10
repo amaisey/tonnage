@@ -2,14 +2,23 @@ import { useState, useRef, useEffect } from 'react';
 import { Icons } from './Icons';
 import { workoutDb, db } from '../db/workoutDb';
 import { defaultExercises } from '../data/defaultExercises';
+import AuthModal from './AuthModal';
+import SyncStatus from './SyncStatus';
+import { useAuth } from '../hooks/useAuth';
+import { queueSyncEntry } from '../lib/syncService';
 
-export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, compactMode, setCompactMode }) {
+export function SettingsModal({ onClose, exercises, templates, folders, activeWorkout, onRestoreData, setActiveWorkout, compactMode, setCompactMode, user, syncStatus, lastSynced, pendingCount, onSyncNow, onHistoryRefresh }) {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [reimporting, setReimporting] = useState(false);
   const [message, setMessage] = useState(null);
   const [workoutCount, setWorkoutCount] = useState(0);
   const fileInputRef = useRef(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [importingHistory, setImportingHistory] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importResult, setImportResult] = useState(null);
+  const { signOut } = useAuth();
 
   // Get workout count on mount
   useEffect(() => {
@@ -62,12 +71,14 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
           workouts,
           exercises,
           templates,
-          folders
+          folders,
+          ...(activeWorkout ? { activeWorkout } : {})
         },
         stats: {
           workoutCount: workouts.length,
           exerciseCount: exercises.length,
-          templateCount: templates.length
+          templateCount: templates.length,
+          ...(activeWorkout ? { hasActiveWorkout: true } : {})
         }
       };
 
@@ -108,7 +119,7 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
         throw new Error('Invalid backup file format');
       }
 
-      const { workouts = [], exercises: importedExercises = [], templates: importedTemplates = [], folders: importedFolders = [] } = backup.data;
+      const { workouts = [], exercises: importedExercises = [], templates: importedTemplates = [], folders: importedFolders = [], activeWorkout: savedActiveWorkout } = backup.data;
 
       // Import workouts to IndexedDB
       if (workouts.length > 0) {
@@ -126,9 +137,16 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
         });
       }
 
+      // Bug #7: Restore active workout if present in backup
+      if (savedActiveWorkout && setActiveWorkout) {
+        setActiveWorkout(savedActiveWorkout);
+      }
+
+      const parts = [`${workouts.length} workouts`, `${importedTemplates.length} templates`, `${importedExercises.length} exercises`];
+      if (savedActiveWorkout) parts.push('active workout');
       setMessage({
         type: 'success',
-        text: `Restored ${workouts.length} workouts, ${importedTemplates.length} templates, ${importedExercises.length} exercises`
+        text: `Restored ${parts.join(', ')}`
       });
 
     } catch (err) {
@@ -138,6 +156,133 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
       setImporting(false);
       // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Import handler function
+  const handleHistoryImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingHistory(true);
+    setImportResult(null);
+
+    try {
+      const text = await file.text();
+      let workouts = [];
+
+      if (file.name.endsWith('.json')) {
+        const data = JSON.parse(text);
+        workouts = data.workouts || (Array.isArray(data) ? data : []);
+      } else if (file.name.endsWith('.csv')) {
+        // Parse Strong CSV
+        const lines = text.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        const workoutMap = new Map();
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Simple CSV parse (handles quoted fields)
+          const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)?.map(v => v.replace(/^"|"$/g, '').trim()) || [];
+
+          const dateStr = values[0];
+          const workoutName = values[1] || 'Workout';
+          const duration = values[2];
+          const exerciseName = values[3];
+          const setOrder = parseInt(values[4]) || 1;
+          const weight = parseFloat(values[5]) || 0;
+          const reps = parseInt(values[6]) || 0;
+
+          const key = `${dateStr}|${workoutName}`;
+
+          if (!workoutMap.has(key)) {
+            const dateMs = new Date(dateStr).getTime();
+            // Parse duration like "12m" or "1h 30m"
+            let durationMs = 0;
+            if (duration) {
+              const hours = duration.match(/(\d+)h/);
+              const mins = duration.match(/(\d+)m/);
+              durationMs = ((hours ? parseInt(hours[1]) * 60 : 0) + (mins ? parseInt(mins[1]) : 0)) * 60000;
+            }
+
+            workoutMap.set(key, {
+              name: workoutName,
+              date: dateMs,
+              startTime: dateMs,
+              duration: durationMs,
+              exercises: []
+            });
+          }
+
+          const workout = workoutMap.get(key);
+          let exercise = workout.exercises.find(ex => ex.name === exerciseName);
+          if (!exercise) {
+            exercise = {
+              name: exerciseName,
+              bodyPart: 'Other',
+              category: 'barbell',
+              sets: []
+            };
+            workout.exercises.push(exercise);
+          }
+
+          exercise.sets.push({
+            completed: true,
+            weight,
+            reps,
+            ...(parseFloat(values[7]) ? { distance: parseFloat(values[7]) } : {}),
+            ...(parseInt(values[8]) ? { duration: parseInt(values[8]) } : {})
+          });
+        }
+
+        workouts = Array.from(workoutMap.values());
+      }
+
+      if (workouts.length === 0) {
+        setImportResult({ success: false, message: 'No workouts found in file' });
+        setImportingHistory(false);
+        return;
+      }
+
+      setImportProgress({ current: 0, total: workouts.length });
+
+      // Batch import
+      const BATCH = 100;
+      for (let i = 0; i < workouts.length; i += BATCH) {
+        const batch = workouts.slice(i, i + BATCH);
+        await workoutDb.bulkAdd(batch);
+        setImportProgress({ current: Math.min(i + BATCH, workouts.length), total: workouts.length });
+        await new Promise(r => setTimeout(r, 10));
+      }
+
+      // Queue for cloud sync if logged in
+      if (user) {
+        const allWorkouts = await workoutDb.getAll();
+        for (const w of allWorkouts) {
+          if (!w.cloudId) {
+            await db.syncQueue.add({
+              entityType: 'workout',
+              entityId: w.id,
+              action: 'create',
+              payload: w,
+              createdAt: Date.now()
+            });
+          }
+        }
+        onSyncNow?.();
+      }
+
+      onHistoryRefresh?.();
+      setImportResult({ success: true, message: `Imported ${workouts.length.toLocaleString()} workouts` });
+    } catch (err) {
+      console.error('Import error:', err);
+      setImportResult({ success: false, message: err.message });
+    } finally {
+      setImportingHistory(false);
+      // Reset file input
+      e.target.value = '';
     }
   };
 
@@ -154,6 +299,33 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
 
         {/* Content */}
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Account & Sync */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-3">Account & Sync</h3>
+            {user ? (
+              <>
+                <div className="text-sm text-gray-300 mb-2">{user.email}</div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                  <SyncStatus status={syncStatus} />
+                  <span>Last synced: {lastSynced ? new Date(lastSynced).toLocaleString() : 'Never'}</span>
+                  {pendingCount > 0 && <span className="text-amber-400">{pendingCount} pending</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={onSyncNow} className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-colors">
+                    Sync Now
+                  </button>
+                  <button onClick={signOut} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-colors">
+                    Sign Out
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button onClick={() => setShowAuth(true)} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 px-4 rounded-xl font-medium transition-colors">
+                Sign In to Sync
+              </button>
+            )}
+          </div>
+
           {/* Bug #3: Compact Mode Toggle */}
           <div className="bg-white/5 rounded-xl p-4 border border-white/10">
             <div className="flex items-center justify-between">
@@ -212,7 +384,7 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
             )}
 
             <p className="text-gray-500 text-xs mt-3">
-              Backups include all workouts, templates, exercises, and folders. Save to iCloud Drive or email to yourself for safekeeping.
+              Backups include all workouts, templates, exercises, folders, and any in-progress workout. Save to iCloud Drive or email to yourself for safekeeping.
             </p>
           </div>
 
@@ -286,8 +458,26 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
               {reimporting ? 'Re-importing...' : 'Re-import Strong History'}
             </button>
           </div>
+
+          {/* Import History */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-2">Import Workout History</h3>
+            <p className="text-gray-500 text-xs mb-3">
+              Import from a Tonnage JSON export or Strong CSV export.
+            </p>
+            {importResult && (
+              <div className={`text-sm rounded-xl p-3 mb-3 ${importResult.success ? 'bg-green-500/10 border border-green-500/30 text-green-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+                {importResult.message}
+              </div>
+            )}
+            <label className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-xl font-medium transition-colors cursor-pointer">
+              {importingHistory ? `Importing... (${importProgress.current}/${importProgress.total})` : 'Import History File'}
+              <input type="file" accept=".json,.csv" onChange={handleHistoryImport} className="hidden" disabled={importingHistory} />
+            </label>
+          </div>
         </div>
       </div>
+      <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
     </div>
   );
 }
