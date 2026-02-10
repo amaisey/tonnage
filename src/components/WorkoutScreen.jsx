@@ -1,8 +1,55 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Icons } from './Icons';
 import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES, SUPERSET_COLORS } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, RestTimerBanner } from './SharedComponents';
+
+// Web Audio API sound utilities - works even on silent mode on most devices
+const audioCtxRef = { current: null };
+const getAudioContext = () => {
+  if (!audioCtxRef.current) {
+    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtxRef.current.state === 'suspended') {
+    audioCtxRef.current.resume();
+  }
+  return audioCtxRef.current;
+};
+
+const playTimerDoneSound = () => {
+  try {
+    const ctx = getAudioContext();
+    // 3-beep notification pattern
+    [0, 0.25, 0.5].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.15);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.15);
+    });
+  } catch (e) { /* audio not available */ }
+};
+
+const playSetCompleteSound = () => {
+  try {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 660;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  } catch (e) { /* audio not available */ }
+};
 
 const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll, compactMode }) => {
   // Bug #3: Compact mode class helper
@@ -112,6 +159,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     };
   }, [activeWorkout]);
 
+  // Unlock AudioContext on first user interaction (required for iOS)
+  useEffect(() => {
+    const unlock = () => { getAudioContext(); document.removeEventListener('touchstart', unlock); };
+    document.addEventListener('touchstart', unlock, { once: true });
+    return () => document.removeEventListener('touchstart', unlock);
+  }, []);
+
   // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
   const getPreviousExerciseData = (exerciseName) => {
     if (!history || history.length === 0) return null;
@@ -137,10 +191,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
       const remaining = Math.max(0, restTimer.totalTime - elapsed);
       if (remaining === 0) {
-        // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
+        // Vibrate + Web Audio API beep (doesn't pause music like HTML5 Audio)
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 300]);
         }
+        playTimerDoneSound();
         setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
         return;
       }
@@ -372,6 +427,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (set.completed) {
       const now = Date.now();
       set.completedAt = now;
+      playSetCompleteSound();
 
       // Bug #10: Check for rapid completions and redistribute time
       const recentCompletions = [];
@@ -846,8 +902,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `${c('p-3','p-2')} ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `${c('p-4','p-2')} rounded-2xl ${c('mb-4','mb-2')}`} transition-transform`}>
-        <div className={`flex items-center justify-between ${c('mb-2','mb-1')}`}>
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `${c('p-2','p-1.5')} ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `${c('p-3','p-1.5')} rounded-2xl ${c('mb-3','mb-1.5')}`} transition-transform`}>
+        <div className={`flex items-center justify-between ${c('mb-1','mb-0.5')}`}>
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
             <button
@@ -959,7 +1015,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         )}
 
         {/* Set headers */}
-        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
+        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-0.5 text-xs text-gray-500 uppercase px-1">
           <span>Set</span>
           <span className="text-center">Prev</span>
           {CATEGORIES[exercise.category]?.fields.length < 2 && <span></span>}
@@ -986,8 +1042,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className={`w-full ${c('mt-2 py-2','mt-1 py-1')} bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm`}>
-          <Icons.Plus /> Add Set ({formatDuration(exerciseRestTime)})
+          className={`w-full ${c('mt-1.5 py-1','mt-1 py-0.5')} bg-gray-800/40 hover:bg-gray-800 rounded-md text-teal-400/80 flex items-center justify-center gap-1 text-xs`}>
+          <Icons.Plus /> Add Set
         </button>
       </div>
       {/* Bug #9: Drag insertion indicator - show after last card */}
@@ -1015,8 +1071,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (group.type === 'superset') {
       const color = getSupersetColor(group.supersetId);
       return (
-        <div key={group.supersetId} className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
+        <div key={group.supersetId} className="mb-3">
+          <div className="flex items-center gap-1.5 mb-0.5">
             <Icons.Link />
             <span className={`text-xs font-medium ${color.text} uppercase tracking-wide`}>Superset</span>
           </div>
@@ -1068,11 +1124,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onMinimize={() => setRestTimerMinimized(true)}
         onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))} />
 
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+      <div className="px-4 py-2 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
+              className="text-lg font-bold text-white bg-transparent border-none focus:outline-none w-full" />
             {/* Bug #15: Pace tracking display */}
             {(() => {
               const pace = getPaceInfo();
@@ -1098,8 +1154,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         </div>
         {activeWorkout.notes && (
-          <div className="mt-3 bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
-            <div className="text-sm text-amber-400 flex items-start gap-2">
+          <div className="mt-1.5 bg-amber-900/20 border border-amber-700/30 rounded-lg px-3 py-1.5">
+            <div className="text-xs text-amber-400 flex items-start gap-2">
               <span>📋</span> <span>{activeWorkout.notes}</span>
             </div>
           </div>
@@ -1121,7 +1177,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto px-3 py-2 ${restTimer.active ? 'pt-20' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'
@@ -1139,10 +1195,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
 
             return (
-              <div key={phaseKey} className="mb-4">
+              <div key={phaseKey} className="mb-3">
                 <button
                   onClick={() => togglePhase(phaseKey)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl ${phaseInfo.color} mb-2`}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl ${phaseInfo.color} mb-1.5`}
                 >
                   <div className="flex items-center gap-2">
                     <span>{phaseInfo.icon}</span>
