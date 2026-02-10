@@ -49,15 +49,15 @@ function App() {
   useEffect(() => {
     const storedVersion = parseInt(localStorage.getItem('template-version') || '0', 10);
     if (storedVersion < TEMPLATE_VERSION) {
-      // Remove old default templates (those with IDs starting with 'sbcp-' or old 'cc-' prefix)
+      // Remove old default templates (those with IDs starting with 'sbcp-', 'cc-', or 'ex-')
       setTemplates(prev => prev.filter(t => {
         const id = String(t.id);
-        return !id.startsWith('sbcp-') && !id.startsWith('cc-');
+        return !id.startsWith('sbcp-') && !id.startsWith('cc-') && !id.startsWith('ex-');
       }));
       // Remove old default folders
       setFolders(prev => prev.filter(f => {
         const id = String(f.id);
-        return !id.startsWith('sbcp') && !id.startsWith('cc-');
+        return !id.startsWith('sbcp') && !id.startsWith('cc-') && !id.startsWith('examples');
       }));
       // Add fresh defaults
       setTemplates(prev => [...prev, ...sampleTemplates]);
