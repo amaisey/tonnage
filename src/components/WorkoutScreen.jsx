@@ -310,21 +310,22 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return null; // All done
   };
 
-  // Determine if rest timer should fire (no timer within same round of a superset)
+  // Determine if rest timer should fire
+  // Default: no timer between superset exercises within the same round (rest=0)
+  // But if user has manually set a rest time > 0 on a non-last superset exercise, respect it
   const shouldStartRestTimer = (justCompletedExIndex, nextExp) => {
     if (!nextExp) return false;
     const exercises = activeWorkout.exercises;
     const justCompleted = exercises[justCompletedExIndex];
     const nextExercise = exercises[nextExp.exIndex];
 
-    // If both in same superset, check if we're advancing to the next round
+    // If both in same superset, check context
     if (justCompleted.supersetId && nextExercise.supersetId &&
         justCompleted.supersetId === nextExercise.supersetId) {
-      // Rest timer fires when the next expected set has a HIGHER set index than any
-      // just-completed set in the same round — meaning all exercises at this round are done.
-      // In practice: if next set number > justCompleted set number, it's a new round → rest timer.
-      // If next set number === justCompleted set number, still same round → no rest timer.
-      return nextExp.setIndex > justCompletedSetIndex;
+      // Round transition (next set index is higher) → always fire rest timer
+      if (nextExp.setIndex > justCompletedSetIndex) return true;
+      // Same round: only fire if the just-completed exercise has a manually-set rest time > 0
+      return (justCompleted.restTime ?? 0) > 0;
     }
 
     return true; // Different exercises / not in superset = rest timer
@@ -395,16 +396,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
     if (asSuperset && selectedExercises.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
-      selectedExercises.forEach(ex => {
+      selectedExercises.forEach((ex, i) => {
         const prevData = getPreviousExerciseData(ex.name);
         const sets = prevData?.sets?.length > 0
           ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
+        const isLast = i === selectedExercises.length - 1;
         updated.exercises.push({
           ...ex,
           supersetId,
           phase: targetPhase, // Bug #12: Assign to target phase
-          restTime: prevData?.restTime || 90,
+          // Non-last superset exercises: zero rest time (user can manually add back)
+          restTime: isLast ? (prevData?.restTime || 90) : 0,
           notes: prevData?.notes || '',
           sets,
           previousSets: prevData?.sets
@@ -634,16 +637,29 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         });
       }
 
-      // Only start rest timer if appropriate (not within same round of a superset)
+      // Start rest timer if appropriate
       if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
         const nextExName = updated.exercises[newExpected.exIndex]?.name || exercise.name;
-        // For superset round transitions, use the last exercise's rest time
-        const restTime = exercise.supersetId
-          ? getSupersetRestTime(exercise.supersetId)
-          : (exercise.restTime ?? 90);
+        const nextExercise = updated.exercises[newExpected.exIndex];
+        // Determine rest time based on context:
+        // - Round transition in superset → use last exercise's rest time
+        // - Same round with manual rest time → use the just-completed exercise's rest time
+        // - Non-superset → use the just-completed exercise's rest time
+        let restTime;
+        if (exercise.supersetId && nextExercise?.supersetId === exercise.supersetId) {
+          if (newExpected.setIndex > setIndex) {
+            // Round transition → use last exercise's rest time
+            restTime = getSupersetRestTime(exercise.supersetId);
+          } else {
+            // Same round, manual rest time on this exercise
+            restTime = exercise.restTime ?? 0;
+          }
+        } else {
+          restTime = exercise.restTime ?? 90;
+        }
         startRestTimer(nextExName, restTime);
       } else if (restTimer.active) {
-        // Within superset - cancel any active rest timer
+        // No rest timer needed - cancel any active one
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
       }
     } else {

@@ -270,8 +270,8 @@ function App() {
     { id: 'settings', icon: Icons.Settings, label: 'Settings' },
   ];
 
-  // Hide navbar when numpad is open, scrolling down, or history modal is open
-  const shouldHideNavbar = isNumpadOpen || navbarHiddenByScroll || isHistoryModalOpen || isTemplatesModalOpen;
+  // Hide navbar only during active workout interactions (numpad, scroll) or when modals are fullscreen
+  const shouldHideNavbar = isNumpadOpen || (navbarHiddenByScroll && activeTab === 'workout') || isHistoryModalOpen || isTemplatesModalOpen;
 
   return (
     <HistoryMigration>
@@ -297,8 +297,6 @@ function App() {
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
               onMergeExercise={handleMergeExercise}
-              onScroll={handleScroll}
-              navVisible={!shouldHideNavbar}
             />
           )}
           {activeTab === 'templates' && (
@@ -316,16 +314,12 @@ function App() {
               onDeleteFolder={id => setFolders(prev => prev.filter(f => f.id !== id))}
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
-              onScroll={handleScroll}
-              navVisible={!shouldHideNavbar}
               onModalStateChange={setIsTemplatesModalOpen}
             />
           )}
           {activeTab === 'history' && (
             <HistoryScreen
               onRefreshNeeded={historyRefreshKey}
-              onScroll={handleScroll}
-              navVisible={!shouldHideNavbar}
               onModalStateChange={setIsHistoryModalOpen}
             />
           )}
