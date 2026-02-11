@@ -84,8 +84,9 @@ function App() {
   // Hook for getting previous exercise data from IndexedDB
   const { getPreviousData, clearCache } = usePreviousExerciseData();
 
-  // Start a workout from a template
+  // Start a workout from a template (blocked if one is already active)
   const startTemplate = useCallback(async (template) => {
+    if (activeWorkout) return; // Guard: don't overwrite an active workout
     // Bug #4: Auto-add template exercises not in library
     const exerciseNames = new Set(exercises.map(e => e.name));
     const newExercises = template.exercises
@@ -236,6 +237,7 @@ function App() {
               templates={templates}
               folders={folders}
               onStartTemplate={startTemplate}
+              hasActiveWorkout={!!activeWorkout}
               onImport={t => setTemplates(prev => [...prev, t])}
               onBulkImport={arr => setTemplates(prev => [...prev, ...arr])}
               onUpdateTemplate={t => setTemplates(prev => prev.map(x => x.id === t.id ? t : x))}
