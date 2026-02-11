@@ -35,6 +35,64 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const wakeLockRef = useRef(null);
   const supersetColorMap = useRef({}); // Bug #13: Track superset color assignments
   const scrollContainerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const audioInitialized = useRef(false);
+
+  // Initialize audio context on first user interaction
+  const initAudio = () => {
+    if (audioInitialized.current) return;
+    try {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioInitialized.current = true;
+    } catch (e) {
+      console.log('Audio init failed:', e);
+    }
+  };
+
+  const playBeep = (frequency = 880, duration = 0.15, volume = 0.3) => {
+    initAudio();
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = frequency;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      console.log('Beep failed:', e);
+    }
+  };
+
+  const playRestTimerAlarm = () => {
+    initAudio();
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      // Three ascending tones
+      [0, 0.2, 0.4].forEach((delay, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 660 + (i * 220);
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.3);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.3);
+      });
+    } catch (e) {
+      console.log('Alarm failed:', e);
+    }
+  };
 
   // Bug #1: Seed timer state when workout starts so the first set shows elapsed time
   useEffect(() => {
@@ -114,6 +172,32 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     };
   }, [activeWorkout]);
 
+  // Scroll to next incomplete exercise when returning to workout
+  useEffect(() => {
+    const scrollToNextIncomplete = () => {
+      if (!activeWorkout?.exercises?.length || !scrollContainerRef.current) return;
+      for (let i = 0; i < activeWorkout.exercises.length; i++) {
+        const hasIncomplete = activeWorkout.exercises[i].sets.some(s => !s.completed);
+        if (hasIncomplete) {
+          setTimeout(() => {
+            const el = dragRefs.current[i];
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 200);
+          break;
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scrollToNextIncomplete();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [activeWorkout?.exercises]);
+
   // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
   const getPreviousExerciseData = (exerciseName) => {
     if (!history || history.length === 0) return null;
@@ -139,7 +223,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
       const remaining = Math.max(0, restTimer.totalTime - elapsed);
       if (remaining === 0) {
-        // Vibrate instead of audio to avoid pausing music (Bug #3 fix)
+        // Play alarm sound and vibrate
+        playRestTimerAlarm();
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 300]);
         }
@@ -336,7 +421,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     exercise.sets[setIndex].manuallyEdited = true;
 
     // Propagate to subsequent sets if enabled
-    if (propagate && value && (field === 'weight' || field === 'reps' || field === 'duration' || field === 'distance' || field === 'assistedWeight')) {
+    if (propagate && value && (field === 'weight' || field === 'reps' || field === 'duration' || field === 'distance' || field === 'assistedWeight' || field === 'bandColor')) {
       for (let i = setIndex + 1; i < exercise.sets.length; i++) {
         const set = exercise.sets[i];
         // Only propagate if: not completed, not manually edited, and value is empty or same as previous
@@ -409,6 +494,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     set.completed = !set.completed;
 
     if (set.completed) {
+      playBeep();
       const now = Date.now();
       set.completedAt = now;
 
@@ -454,12 +540,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         redistributedFrozen[`${exIndex}-${setIndex}`] = Math.round((set.completedAt - prevTime) / 1000);
         setFrozenElapsed(prev => ({ ...prev, ...redistributedFrozen }));
       } else {
-        // Bug #2: Freeze the elapsed time for the set being completed (non-rapid path)
-        // If this set has a live anchor (negative frozenElapsed), use that as the base timestamp
+        // Freeze the elapsed time for the set being completed (non-rapid path)
+        // Use actual completedAt timestamps for reliability instead of potentially stale state
         const existingFrozen = frozenElapsed[`${exIndex}-${setIndex}`];
-        const baseTimestamp = (existingFrozen !== undefined && existingFrozen < 0)
-          ? Math.abs(existingFrozen)
-          : lastCompletionTimestamp;
+        let baseTimestamp;
+        if (existingFrozen !== undefined && existingFrozen < 0) {
+          baseTimestamp = Math.abs(existingFrozen);
+        } else {
+          // Find the most recent completedAt among all other completed sets
+          let mostRecentCompletion = activeWorkout.startTime;
+          updated.exercises.forEach((ex, eIdx) => {
+            ex.sets?.forEach((s, sIdx) => {
+              if (s.completed && s.completedAt && !(eIdx === exIndex && sIdx === setIndex)) {
+                if (s.completedAt > mostRecentCompletion) {
+                  mostRecentCompletion = s.completedAt;
+                }
+              }
+            });
+          });
+          baseTimestamp = mostRecentCompletion;
+        }
         if (baseTimestamp) {
           const elapsed = Math.round((now - baseTimestamp) / 1000);
           setFrozenElapsed(prev => ({
@@ -512,8 +612,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
       if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
-        // Bug #2/#16: Use the just-completed exercise's rest time for the timer
-        startRestTimer(exercise.name, exercise.restTime ?? 90);
+        // Use the just-completed exercise's rest time but show the NEXT exercise name
+        const nextExName = updated.exercises[newExpected.exIndex]?.name || exercise.name;
+        startRestTimer(nextExName, exercise.restTime ?? 90);
       } else if (restTimer.active) {
         // Within superset - cancel any active rest timer
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
@@ -593,6 +694,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     longPressTimerRef.current = setTimeout(() => {
       // Haptic feedback
       if (navigator.vibrate) navigator.vibrate(50);
+      closeNumpad(); // Dismiss number pad when starting drag
       setDragTouch({ exIndex, startY, currentY: startY, insertBefore: null });
       // Prevent scrolling while dragging
       e.target.closest('.workout-scroll-container')?.style.setProperty('overflow', 'hidden');
@@ -653,6 +755,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const [movedExercise] = updated.exercises.splice(fromIndex, 1);
       updated.exercises.splice(toIndex, 0, movedExercise);
       setActiveWorkout(updated);
+
+      // Auto-scroll to moved exercise after render
+      setTimeout(() => {
+        const el = dragRefs.current[toIndex];
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
     setDragTouch(null);
     // Re-enable scrolling
@@ -662,11 +770,17 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   // Legacy drag functions (kept for backward compatibility with grip handle)
   const startDrag = (exIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
+    closeNumpad(); // Dismiss number pad
     setDragState({
       exIndex,
       phase: exercise.phase || 'workout',
       originalIndex: exIndex
     });
+    // Auto-scroll to the exercise being moved
+    setTimeout(() => {
+      const el = dragRefs.current[exIndex];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const cancelDrag = () => {
@@ -715,6 +829,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const unlinkSuperset = (exIndex) => {
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
+    const oldSupersetId = exercise.supersetId;
 
     // Restore original rest time if it was saved before superset linking
     if (exercise._preSupersetRestTime) {
@@ -723,6 +838,19 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
 
     delete exercise.supersetId;
+
+    // Auto-disconnect if only one exercise remains in the superset
+    if (oldSupersetId) {
+      const remaining = updated.exercises.filter(ex => ex.supersetId === oldSupersetId);
+      if (remaining.length === 1) {
+        if (remaining[0]._preSupersetRestTime) {
+          remaining[0].restTime = remaining[0]._preSupersetRestTime;
+          delete remaining[0]._preSupersetRestTime;
+        }
+        delete remaining[0].supersetId;
+      }
+    }
+
     setActiveWorkout(updated);
   };
 
@@ -814,7 +942,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   // Bug #15: Calculate pace tracking
   const getPaceInfo = () => {
-    if (!activeWorkout?.estimatedTime || !activeWorkout?.exercises?.length) return null;
+    if (!activeWorkout?.exercises?.length) return null;
+    // Calculate estimated time if not explicitly set
+    if (!activeWorkout.estimatedTime) {
+      activeWorkout.estimatedTime = Math.round(activeWorkout.exercises.reduce((total, ex) => {
+        const setTime = (ex.sets?.length || 3) * 45;
+        const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
+        return total + setTime + restTime;
+      }, 0) / 60);
+    }
 
     const totalSets = activeWorkout.exercises.reduce((sum, ex) => sum + (ex.sets?.length || 0), 0);
     const completedSets = activeWorkout.exercises.reduce((sum, ex) =>

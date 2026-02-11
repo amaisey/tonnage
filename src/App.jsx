@@ -117,10 +117,17 @@ function App() {
       })
     );
 
+    // Calculate estimated time if not explicitly set on template
+    const estimatedTime = template.estimatedTime || Math.round(template.exercises.reduce((total, ex) => {
+      const setTime = (ex.sets?.length || 3) * 45;
+      const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
+      return total + setTime + restTime;
+    }, 0) / 60);
+
     setActiveWorkout({
       name: template.name,
-      notes: template.notes || '', // Bug #5: Pass template notes to workout
-      estimatedTime: template.estimatedTime, // For pace tracking (Bug #15)
+      notes: template.notes || '',
+      estimatedTime,
       exercises: exercisesWithPrevData,
       startTime: Date.now()
     });
@@ -295,8 +302,6 @@ function App() {
             templates={templates}
             folders={folders}
             onRestoreData={handleRestoreData}
-            compactMode={compactMode}
-            setCompactMode={setCompactMode}
           />
         )}
       </div>
