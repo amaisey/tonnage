@@ -11,6 +11,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [numpadState, setNumpadState] = useState(null); // { exIndex, setIndex, field, fieldIndex }
   const [exerciseDetail, setExerciseDetail] = useState(null); // exercise to show detail modal for
   const [showExerciseDetailModal, setShowExerciseDetailModal] = useState(null); // { exercise, history }
@@ -119,6 +120,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     onNumpadStateChange?.(numpadState !== null);
   }, [numpadState, onNumpadStateChange]);
 
+  // Auto-scroll input into view when numpad opens so input isn't hidden behind it
+  useEffect(() => {
+    if (numpadState) {
+      setTimeout(() => {
+        const el = dragRefs.current[numpadState.exIndex];
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    }
+  }, [numpadState?.exIndex, numpadState?.setIndex, numpadState?.field]);
+
   // Auto-scroll to rest time options when editing
   useEffect(() => {
     if (editingRestTime !== null && restTimeRef.current) {
@@ -172,7 +185,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     };
   }, [activeWorkout]);
 
-  // Scroll to next incomplete exercise when returning to workout
+  // Scroll to next incomplete exercise on mount (tab switch) and when returning to app
   useEffect(() => {
     const scrollToNextIncomplete = () => {
       if (!activeWorkout?.exercises?.length || !scrollContainerRef.current) return;
@@ -187,6 +200,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }
       }
     };
+
+    // Scroll on mount (covers switching back from Templates/History tabs)
+    scrollToNextIncomplete();
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -246,34 +262,35 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
 
-  // Bug #8: Calculate the next expected set (superset-aware)
+  // Calculate the next expected set (superset-aware)
+  // For supersets: pick the incomplete set with the lowest set number,
+  // breaking ties by earliest exercise position in the superset.
   const calculateNextExpected = (justCompletedExIndex, justCompletedSetIndex) => {
     const exercises = activeWorkout.exercises;
     const justCompleted = exercises[justCompletedExIndex];
 
-    // If in a superset, navigate within the superset first
     if (justCompleted.supersetId) {
       const supersetExercises = exercises
         .map((ex, idx) => ({ ex, idx }))
         .filter(({ ex }) => ex.supersetId === justCompleted.supersetId);
 
-      const posInSuperset = supersetExercises.findIndex(({ idx }) => idx === justCompletedExIndex);
+      let bestCandidate = null;
+      let bestSetIndex = Infinity;
+      let bestExPos = Infinity;
 
-      if (posInSuperset < supersetExercises.length - 1) {
-        // Next exercise in superset (same round)
-        const nextInSuperset = supersetExercises[posInSuperset + 1];
-        const nextSetIdx = nextInSuperset.ex.sets.findIndex(s => !s.completed);
-        if (nextSetIdx >= 0) {
-          return { exIndex: nextInSuperset.idx, setIndex: nextSetIdx };
-        }
-      } else {
-        // Last in superset - loop back to first (next round)
-        const firstInSuperset = supersetExercises[0];
-        const nextSetIdx = firstInSuperset.ex.sets.findIndex(s => !s.completed);
-        if (nextSetIdx >= 0) {
-          return { exIndex: firstInSuperset.idx, setIndex: nextSetIdx };
-        }
-      }
+      supersetExercises.forEach(({ ex, idx }, posInSuperset) => {
+        ex.sets.forEach((s, sIdx) => {
+          if (!s.completed) {
+            if (sIdx < bestSetIndex || (sIdx === bestSetIndex && posInSuperset < bestExPos)) {
+              bestCandidate = { exIndex: idx, setIndex: sIdx };
+              bestSetIndex = sIdx;
+              bestExPos = posInSuperset;
+            }
+          }
+        });
+      });
+
+      if (bestCandidate) return bestCandidate;
     }
 
     // Not in superset, or superset fully complete: next incomplete set of same exercise
@@ -293,26 +310,33 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return null; // All done
   };
 
-  // Bug #15: Determine if rest timer should fire (no timer within supersets)
+  // Determine if rest timer should fire (no timer within same round of a superset)
   const shouldStartRestTimer = (justCompletedExIndex, nextExp) => {
     if (!nextExp) return false;
     const exercises = activeWorkout.exercises;
     const justCompleted = exercises[justCompletedExIndex];
     const nextExercise = exercises[nextExp.exIndex];
 
-    // If both in same superset, check if we're looping back (new round) or moving forward
+    // If both in same superset, check if we're advancing to the next round
     if (justCompleted.supersetId && nextExercise.supersetId &&
         justCompleted.supersetId === nextExercise.supersetId) {
-      const supersetExercises = exercises
-        .map((ex, idx) => ({ ex, idx }))
-        .filter(({ ex }) => ex.supersetId === justCompleted.supersetId);
-      const currentPos = supersetExercises.findIndex(({ idx }) => idx === justCompletedExIndex);
-      const nextPos = supersetExercises.findIndex(({ idx }) => idx === nextExp.exIndex);
-      // Moving forward in superset = no rest timer. Looping back = rest timer.
-      return nextPos <= currentPos;
+      // Rest timer fires when the next expected set has a HIGHER set index than any
+      // just-completed set in the same round — meaning all exercises at this round are done.
+      // In practice: if next set number > justCompleted set number, it's a new round → rest timer.
+      // If next set number === justCompleted set number, still same round → no rest timer.
+      return nextExp.setIndex > justCompletedSetIndex;
     }
 
     return true; // Different exercises / not in superset = rest timer
+  };
+
+  // Get the rest time to use for a superset round transition (last exercise's rest time)
+  const getSupersetRestTime = (supersetId) => {
+    const supersetExercises = activeWorkout.exercises
+      .filter(ex => ex.supersetId === supersetId);
+    if (supersetExercises.length === 0) return 90;
+    const lastEx = supersetExercises[supersetExercises.length - 1];
+    return lastEx.restTime ?? 90;
   };
 
   // Bug #18: Check if an exercise is a non-last member of a superset (should not show rest timer row)
@@ -610,11 +634,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         });
       }
 
-      // Bug #15: Only start rest timer if appropriate (not within superset forward movement)
+      // Only start rest timer if appropriate (not within same round of a superset)
       if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
-        // Use the just-completed exercise's rest time but show the NEXT exercise name
         const nextExName = updated.exercises[newExpected.exIndex]?.name || exercise.name;
-        startRestTimer(nextExName, exercise.restTime ?? 90);
+        // For superset round transitions, use the last exercise's rest time
+        const restTime = exercise.supersetId
+          ? getSupersetRestTime(exercise.supersetId)
+          : (exercise.restTime ?? 90);
+        startRestTimer(nextExName, restTime);
       } else if (restTimer.active) {
         // Within superset - cancel any active rest timer
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
@@ -796,6 +823,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
     setDragState(null);
+
+    // Auto-scroll to the moved exercise's new position
+    setTimeout(() => {
+      const el = dragRefs.current[adjustedTarget];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const moveExercise = (fromIndex, toIndex, newPhase) => {
@@ -827,7 +860,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   // Bug #5: Unlink restores original rest time
   const unlinkSuperset = (exIndex) => {
-    const updated = { ...activeWorkout };
+    // Deep clone to prevent stale state and position revert issues
+    const updated = {
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map(ex => ({ ...ex, sets: ex.sets.map(s => ({ ...s })) }))
+    };
     const exercise = updated.exercises[exIndex];
     const oldSupersetId = exercise.supersetId;
 
@@ -1044,7 +1081,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           onClick={() => dropExercise(exIndex, exercise.phase || 'workout')}
         >
           <div className="flex items-center gap-3">
-            <span className="text-gray-500 text-sm">↓ Drop here</span>
+            <span className="text-cyan-500 text-sm">↓ Drop in front of:</span>
             <span className="text-white font-medium">{exercise.name}</span>
             <span className="text-gray-500 text-xs">({exercise.sets?.length || 0} sets)</span>
           </div>
@@ -1314,7 +1351,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm whitespace-nowrap">Cancel</button>
-            <button onClick={() => onFinish(activeWorkout)} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
+            <button onClick={() => {
+              const hasIncomplete = activeWorkout.exercises.some(ex => ex.sets.some(s => !s.completed));
+              if (hasIncomplete) {
+                setShowFinishConfirm(true);
+              } else {
+                onFinish(activeWorkout);
+              }
+            }} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (
@@ -1436,6 +1480,64 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         </div>
       )}
+
+      {/* Finish Confirmation Modal (incomplete sets) */}
+      {showFinishConfirm && (() => {
+        const incompleteSets = activeWorkout.exercises.reduce((sum, ex) =>
+          sum + ex.sets.filter(s => !s.completed).length, 0);
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+              <h3 className="text-lg font-semibold text-white mb-2">Incomplete Sets</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                You have {incompleteSets} incomplete {incompleteSets === 1 ? 'set' : 'sets'}. How would you like to proceed?
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    // Remove incomplete sets and finish
+                    const cleaned = {
+                      ...activeWorkout,
+                      exercises: activeWorkout.exercises.map(ex => ({
+                        ...ex,
+                        sets: ex.sets.filter(s => s.completed)
+                      })).filter(ex => ex.sets.length > 0)
+                    };
+                    setShowFinishConfirm(false);
+                    onFinish(cleaned);
+                  }}
+                  className="w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700"
+                >
+                  Finish &amp; Remove Incomplete
+                </button>
+                <button
+                  onClick={() => {
+                    // Auto-complete all incomplete sets and finish
+                    const autoCompleted = {
+                      ...activeWorkout,
+                      exercises: activeWorkout.exercises.map(ex => ({
+                        ...ex,
+                        sets: ex.sets.map(s => s.completed ? s : { ...s, completed: true, completedAt: Date.now() })
+                      }))
+                    };
+                    setShowFinishConfirm(false);
+                    onFinish(autoCompleted);
+                  }}
+                  className="w-full bg-cyan-600 text-white py-3 rounded-xl font-medium hover:bg-cyan-700"
+                >
+                  Auto-Complete All &amp; Finish
+                </button>
+                <button
+                  onClick={() => setShowFinishConfirm(false)}
+                  className="w-full bg-gray-800 text-gray-300 py-3 rounded-xl font-medium hover:bg-gray-700"
+                >
+                  Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {showExerciseModal && (
         <ExerciseSearchModal
