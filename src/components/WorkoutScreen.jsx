@@ -455,8 +455,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         setFrozenElapsed(prev => ({ ...prev, ...redistributedFrozen }));
       } else {
         // Bug #2: Freeze the elapsed time for the set being completed (non-rapid path)
-        if (lastCompletionTimestamp) {
-          const elapsed = Math.round((now - lastCompletionTimestamp) / 1000);
+        // If this set has a live anchor (negative frozenElapsed), use that as the base timestamp
+        const existingFrozen = frozenElapsed[`${exIndex}-${setIndex}`];
+        const baseTimestamp = (existingFrozen !== undefined && existingFrozen < 0)
+          ? Math.abs(existingFrozen)
+          : lastCompletionTimestamp;
+        if (baseTimestamp) {
+          const elapsed = Math.round((now - baseTimestamp) / 1000);
           setFrozenElapsed(prev => ({
             ...prev,
             [`${exIndex}-${setIndex}`]: elapsed
@@ -464,15 +469,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }
       }
 
-      // Bug #3/#10: If user completed a set that wasn't the expected next, freeze the skipped timer
+      // Bug #3/#10: If user completed a set that wasn't the expected next, handle the skipped set's timer
       if (expectedNext &&
           (expectedNext.exIndex !== exIndex || expectedNext.setIndex !== setIndex) &&
           lastCompletionTimestamp) {
-        const elapsedSinceLastCompletion = Math.round((now - lastCompletionTimestamp) / 1000);
-        setFrozenElapsed(prev => ({
-          ...prev,
-          [`${expectedNext.exIndex}-${expectedNext.setIndex}`]: elapsedSinceLastCompletion
-        }));
+        const key = `${expectedNext.exIndex}-${expectedNext.setIndex}`;
+        if (expectedNext.exIndex !== exIndex) {
+          // Different exercise: keep a live timer anchor (negative timestamp)
+          // so the skipped set's timer continues counting from the original completion
+          setFrozenElapsed(prev => ({
+            ...prev,
+            [key]: -lastCompletionTimestamp
+          }));
+        } else {
+          // Same exercise, different set: freeze at the current elapsed (truly skipped)
+          const elapsedSinceLastCompletion = Math.round((now - lastCompletionTimestamp) / 1000);
+          setFrozenElapsed(prev => ({
+            ...prev,
+            [key]: elapsedSinceLastCompletion
+          }));
+        }
       }
 
       // Calculate the next expected set from what was just completed

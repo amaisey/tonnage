@@ -302,9 +302,21 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
   }, [activeField]);
 
   // Bug #3/#7: Timer only runs on the next expected set, derived from single timestamp
+  // Convention: negative frozenElapsed = live timer anchor (absolute value is the timestamp to count from)
+  //             positive frozenElapsed = truly frozen (static seconds display)
   useEffect(() => {
-    // If this set has a frozen elapsed value (it was skipped), show that
     if (frozenElapsed !== null && frozenElapsed !== undefined) {
+      if (frozenElapsed < 0) {
+        // Negative = live timer anchor: count up from the stored timestamp
+        const anchorTimestamp = Math.abs(frozenElapsed);
+        const updateElapsed = () => {
+          setElapsedTime(Math.round((Date.now() - anchorTimestamp) / 1000));
+        };
+        updateElapsed();
+        const interval = setInterval(updateElapsed, 1000);
+        return () => clearInterval(interval);
+      }
+      // Positive = truly frozen, show static value
       setElapsedTime(frozenElapsed);
       return;
     }
