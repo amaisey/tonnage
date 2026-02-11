@@ -476,10 +476,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         const key = `${expectedNext.exIndex}-${expectedNext.setIndex}`;
         if (expectedNext.exIndex !== exIndex) {
           // Different exercise: keep a live timer anchor (negative timestamp)
-          // so the skipped set's timer continues counting from the original completion
+          // Timer restarts from now (when the other exercise's set was completed)
           setFrozenElapsed(prev => ({
             ...prev,
-            [key]: -lastCompletionTimestamp
+            [key]: -now
           }));
         } else {
           // Same exercise, different set: freeze at the current elapsed (truly skipped)
