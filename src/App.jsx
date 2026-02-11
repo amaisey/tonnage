@@ -110,7 +110,7 @@ function App() {
         const sets = ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
         return {
           ...ex,
-          restTime: ex.restTime ?? 90,
+          restTime: ex.restTime ?? 60,
           notes: ex.notes || '',
           sets,
           previousSets: prevData?.sets
@@ -121,7 +121,7 @@ function App() {
     // Calculate estimated time if not explicitly set on template
     const estimatedTime = template.estimatedTime || Math.round(template.exercises.reduce((total, ex) => {
       const setTime = (ex.sets?.length || 3) * 45;
-      const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
+      const restTime = (ex.sets?.length || 3) * (ex.restTime || 60);
       return total + setTime + restTime;
     }, 0) / 60);
 

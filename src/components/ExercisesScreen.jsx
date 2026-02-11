@@ -334,10 +334,10 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
   const addExercises = (exercises, asSuperset) => {
     if (asSuperset && exercises.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
-      const newExercises = exercises.map(ex => ({ ...ex, supersetId, restTime: 90, sets: [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)] }));
+      const newExercises = exercises.map(ex => ({ ...ex, supersetId, restTime: 60, sets: [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)] }));
       setTemplateExercises([...templateExercises, ...newExercises]);
     } else {
-      const newExercises = exercises.map(ex => ({ ...ex, restTime: 90, sets: [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)] }));
+      const newExercises = exercises.map(ex => ({ ...ex, restTime: 60, sets: [getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category), getDefaultSetForCategory(ex.category)] }));
       setTemplateExercises([...templateExercises, ...newExercises]);
     }
     setShowExercisePicker(false);
@@ -361,7 +361,7 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
     onSave({
       id: Date.now(), name: name.trim(), folderId,
       exercises: templateExercises.map(ex => ({
-        name: ex.name, bodyPart: ex.bodyPart, category: ex.category, supersetId: ex.supersetId, restTime: ex.restTime || 90,
+        name: ex.name, bodyPart: ex.bodyPart, category: ex.category, supersetId: ex.supersetId, restTime: ex.restTime || 60,
         sets: ex.sets.map(s => { const newSet = {}; Object.keys(s).forEach(k => { if (k !== 'completed') newSet[k] = s[k] || 0; }); return newSet; })
       }))
     });
@@ -403,7 +403,7 @@ const CreateTemplateModal = ({ folderId, allExercises, onSave, onClose }) => {
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-400">Rest:</span>
-        <div className="flex gap-1">{restTimePresets.map(t => (<button key={t} onClick={() => updateRestTime(i, t)} className={`px-2 py-1 rounded text-xs font-medium ${(ex.restTime || 90) === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>{formatDuration(t)}</button>))}</div>
+        <div className="flex gap-1">{restTimePresets.map(t => (<button key={t} onClick={() => updateRestTime(i, t)} className={`px-2 py-1 rounded text-xs font-medium ${(ex.restTime || 60) === t ? 'bg-rose-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>{formatDuration(t)}</button>))}</div>
       </div>
     </div>
   );

@@ -926,28 +926,101 @@ const TimerScreen = () => {
 
 // Rest Timer Banner - shows during rest periods
 // Bug #6: Added minimize option
-const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime, onMinimize, exerciseName }) => {
+const RestTimerBanner = ({ isActive, isMinimized, timeRemaining, totalTime, onSkip, onAddTime, onMinimize, onExpand, exerciseName }) => {
+  const touchStartY = useRef(null);
+  const touchDeltaY = useRef(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Reset drag state when timer state changes
+  useEffect(() => {
+    setDragOffset(0);
+    setIsDragging(false);
+  }, [isActive, isMinimized]);
+
   if (!isActive) return null;
 
-  const progress = timeRemaining / totalTime;
+  const progress = totalTime > 0 ? timeRemaining / totalTime : 0;
   const isUrgent = timeRemaining <= 10;
 
+  // Swipe-up gesture handlers for the expanded banner
+  const handleTouchStart = (e) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchDeltaY.current = 0;
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartY.current === null) return;
+    const delta = e.touches[0].clientY - touchStartY.current;
+    // Only allow upward dragging (negative delta)
+    const clampedDelta = Math.min(0, delta);
+    touchDeltaY.current = clampedDelta;
+    setDragOffset(clampedDelta);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    // If swiped up more than 40px, minimize
+    if (touchDeltaY.current < -40) {
+      onMinimize?.();
+    }
+    setDragOffset(0);
+    touchStartY.current = null;
+  };
+
+  // Minimized: Dynamic Island pill
+  if (isMinimized) {
+    return (
+      <div
+        className="fixed left-1/2 -translate-x-1/2 z-40"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4px)' }}
+      >
+        <button
+          onClick={onExpand}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border transition-all ${
+            isUrgent
+              ? 'bg-orange-500/95 border-orange-400 animate-pulse'
+              : 'bg-rose-700/95 border-rose-500/50'
+          }`}
+        >
+          <Icons.TimerSmall />
+          <span className="text-white font-bold font-mono text-sm">{formatDuration(timeRemaining)}</span>
+          <div className="w-8 h-1.5 bg-white/30 rounded-full overflow-hidden">
+            <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${progress * 100}%` }} />
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  // Expanded: full banner with swipe-up to minimize
+  const opacity = isDragging ? Math.max(0.3, 1 + dragOffset / 120) : 1;
+
   return (
-    <div className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4" style={{ top: 'calc(env(safe-area-inset-top) + 3rem)' }}>
+    <div
+      className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4"
+      style={{
+        top: 'calc(env(safe-area-inset-top) + 3rem)',
+        transform: `translateY(${dragOffset}px)`,
+        opacity,
+        transition: isDragging ? 'none' : 'transform 0.3s ease, opacity 0.3s ease'
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <div className={`rounded-2xl px-3 py-2 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
+        {/* Swipe handle */}
+        <div className="flex justify-center mb-1">
+          <div className="w-10 h-1 bg-white/40 rounded-full" />
+        </div>
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5 text-white">
             <Icons.TimerSmall />
             <span className="text-xs font-medium">Rest Timer</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-white/80 text-xs">{exerciseName}</span>
-            {onMinimize && (
-              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-0.5" title="Dismiss">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            )}
-          </div>
+          <span className="text-white/80 text-xs truncate max-w-[140px]">{exerciseName}</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-1">

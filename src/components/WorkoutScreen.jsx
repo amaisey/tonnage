@@ -256,7 +256,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
   const startRestTimer = (exerciseName, restTime) => {
-    const time = restTime ?? 90; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
+    const time = restTime ?? 60; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
     if (time <= 0) return; // Don't start timer for 0-rest exercises (supersets)
     setRestTimer({ active: true, time, totalTime: time, startedAt: Date.now(), exerciseName });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
@@ -337,7 +337,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       .filter(ex => ex.supersetId === supersetId);
     if (supersetExercises.length === 0) return 90;
     const lastEx = supersetExercises[supersetExercises.length - 1];
-    return lastEx.restTime ?? 90;
+    return lastEx.restTime ?? 60;
   };
 
   // Bug #18: Check if an exercise is a non-last member of a superset (should not show rest timer row)
@@ -363,7 +363,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (setIndex === 0 && exIndex > 0) {
         const prevExercise = activeWorkout.exercises[exIndex - 1];
         if (!prevExercise.supersetId || prevExercise.supersetId !== exercise.supersetId) {
-          return prevExercise.restTime ?? 90;
+          return prevExercise.restTime ?? 60;
         }
       }
       return 0;
@@ -376,16 +376,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
 
     // For set 1+ of any non-superset exercise: use that exercise's own rest time
-    if (setIndex > 0) return exercise.restTime ?? 90;
+    if (setIndex > 0) return exercise.restTime ?? 60;
 
     // For set 0: the target rest is whatever rest period happened BEFORE this exercise
     // That means the previous exercise's rest time
     if (exIndex > 0) {
       const prevExercise = activeWorkout.exercises[exIndex - 1];
-      return prevExercise.restTime ?? 90;
+      return prevExercise.restTime ?? 60;
     }
 
-    return exercise.restTime ?? 90;
+    return exercise.restTime ?? 60;
   };
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
@@ -407,7 +407,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           supersetId,
           phase: targetPhase, // Bug #12: Assign to target phase
           // Non-last superset exercises: zero rest time (user can manually add back)
-          restTime: isLast ? (prevData?.restTime || 90) : 0,
+          restTime: isLast ? (prevData?.restTime || 60) : 0,
           notes: prevData?.notes || '',
           sets,
           previousSets: prevData?.sets
@@ -422,7 +422,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         updated.exercises.push({
           ...ex,
           phase: targetPhase, // Bug #12: Assign to target phase
-          restTime: prevData?.restTime || 90,
+          restTime: prevData?.restTime || 60,
           notes: prevData?.notes || '',
           sets,
           previousSets: prevData?.sets
@@ -655,7 +655,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             restTime = exercise.restTime ?? 0;
           }
         } else {
-          restTime = exercise.restTime ?? 90;
+          restTime = exercise.restTime ?? 60;
         }
         startRestTimer(nextExName, restTime);
       } else if (restTimer.active) {
@@ -927,7 +927,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (i < supersetExercises.length - 1) {
         // Save original rest time before zeroing (for restore on unlink)
         if (!ex._preSupersetRestTime) {
-          ex._preSupersetRestTime = ex.restTime || 90;
+          ex._preSupersetRestTime = ex.restTime || 60;
         }
         ex.restTime = 0;
       }
@@ -1000,7 +1000,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (!activeWorkout.estimatedTime) {
       activeWorkout.estimatedTime = Math.round(activeWorkout.exercises.reduce((total, ex) => {
         const setTime = (ex.sets?.length || 3) * 45;
-        const restTime = (ex.sets?.length || 3) * (ex.restTime || 90);
+        const restTime = (ex.sets?.length || 3) * (ex.restTime || 60);
         return total + setTime + restTime;
       }, 0) / 60);
     }
@@ -1079,7 +1079,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
   const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true, supersetColorDot = null) => {
-    const exerciseRestTime = exercise.restTime ?? 90;
+    const exerciseRestTime = exercise.restTime ?? 60;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
     const phaseInfo = exercise.phase && exercise.phase !== 'workout' ? EXERCISE_PHASES[exercise.phase] : null;
 
@@ -1335,11 +1335,17 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70"></div>
       </div>
       <div className="relative z-10 flex flex-col h-full overflow-hidden">
-      <RestTimerBanner isActive={restTimer.active && !restTimerMinimized} timeRemaining={restTimer.time} totalTime={restTimer.totalTime}
+      <RestTimerBanner
+        isActive={restTimer.active}
+        isMinimized={restTimerMinimized}
+        timeRemaining={restTimer.time}
+        totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName}
         onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' })}
         onMinimize={() => setRestTimerMinimized(true)}
-        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))} />
+        onExpand={() => setRestTimerMinimized(false)}
+        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))}
+      />
 
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">
@@ -1401,7 +1407,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active && !restTimerMinimized ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'

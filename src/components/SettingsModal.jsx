@@ -60,7 +60,7 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
           <div className="bg-white/5 rounded-xl p-4 border border-white/10">
             <h3 className="text-white font-medium mb-2">Refresh Defaults</h3>
             <p className="text-gray-500 text-xs mb-3">
-              Pulls in any new default exercises and refreshes default templates. Your custom exercises, templates, and workout history are untouched.
+              Adds any new built-in exercises to your library and resets default templates/folders to the latest versions. Your custom exercises, custom templates, and workout history stay untouched. This does not update app code — redeploy the app for code changes.
             </p>
             <button
               onClick={() => {
@@ -68,7 +68,7 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                   const result = onRefreshDefaults();
                   const parts = [];
                   if (result.newExercises > 0) parts.push(`${result.newExercises} new exercises added`);
-                  parts.push('default templates refreshed');
+                  parts.push('default templates & folders refreshed');
                   setMessage({ type: 'success', text: parts.join(', ') });
                 } catch (err) {
                   setMessage({ type: 'error', text: 'Refresh failed: ' + err.message });
