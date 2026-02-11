@@ -336,7 +336,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
         <div key={field} className="flex-1">
           <button
             onClick={() => onOpenBandPicker ? onOpenBandPicker(currentColor) : onUpdate('bandColor', currentColor === 'red' ? 'green' : 'red')}
-            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-2 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
+            className={`w-full ${colorInfo.bg} ${colorInfo.text} px-2 py-1.5 rounded-lg text-center text-xs font-medium focus:outline-none ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
           >
             {currentColor.charAt(0).toUpperCase() + currentColor.slice(1)}
           </button>
@@ -357,7 +357,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
       <button
         key={field}
         onClick={() => onOpenNumpad(setIndex, field, fieldIndex)}
-        className={`flex-1 px-2 py-2 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'} ${isProposed ? 'opacity-50' : ''}`}
+        className={`flex-1 px-2 py-1.5 rounded-lg text-center text-sm focus:outline-none min-w-0 ${isActive ? 'bg-cyan-600 text-white ring-2 ring-cyan-400' : 'bg-gray-700 text-white'} ${isProposed ? 'opacity-50' : ''}`}
       >
         {displayValue}
       </button>
@@ -429,15 +429,13 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     <>
       {/* Dual rest time indicator - Elapsed (left) | Target (right) */}
       {showRestRow && (
-        <div className="flex items-center justify-center py-1 gap-2">
+        <div className="flex items-center justify-center py-0.5 gap-1.5">
           <div className="flex-1 h-px bg-rose-700/30"></div>
-          {/* Left: Elapsed time (actual rest taken or live counter) */}
-          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${set.completed ? 'text-white' : 'text-cyan-400'}`}>
+          <span className={`text-[10px] font-mono px-1 min-w-[40px] text-center ${set.completed ? 'text-white' : 'text-cyan-400'}`}>
             {formatDuration(elapsedTime)}
           </span>
-          <span className="text-gray-600 text-xs">|</span>
-          {/* Right: Target rest time */}
-          <span className={`text-xs font-mono px-2 min-w-[48px] text-center ${restTime > 0 ? 'text-rose-400' : 'text-gray-600'}`}>
+          <span className="text-gray-600 text-[10px]">|</span>
+          <span className={`text-[10px] font-mono px-1 min-w-[40px] text-center ${restTime > 0 ? 'text-rose-400' : 'text-gray-600'}`}>
             {restTime > 0 ? formatDuration(restTime) : '-'}
           </span>
           <div className="flex-1 h-px bg-rose-700/30"></div>
@@ -456,7 +454,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
         {/* Main row content */}
         <div
           ref={rowRef}
-          className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center p-2 ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'} relative z-10`}
+          className={`grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 items-center px-2 py-1 ${set.completed ? 'bg-green-500/20' : 'bg-gray-800/50'} relative z-10`}
           style={{
             transform: `translateX(${swipeX}px)`,
             transition: isSwiping ? 'none' : 'transform 0.2s ease-out',
@@ -472,7 +470,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           {fields.length < 2 && <div></div>}
           {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
           {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
-          <button onClick={onComplete} className={`p-2 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+          <button onClick={onComplete} className={`p-1.5 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
             <Icons.Check />
           </button>
         </div>
@@ -776,32 +774,32 @@ const RestTimerBanner = ({ isActive, timeRemaining, totalTime, onSkip, onAddTime
 
   return (
     <div className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4" style={{ top: 'calc(env(safe-area-inset-top) + 3rem)' }}>
-      <div className={`rounded-2xl p-4 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-white">
+      <div className={`rounded-2xl px-3 py-2 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5 text-white">
             <Icons.TimerSmall />
-            <span className="text-sm font-medium">Rest Timer</span>
+            <span className="text-xs font-medium">Rest Timer</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-white/80 text-xs">{exerciseName}</span>
             {onMinimize && (
-              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-1" title="Dismiss">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={onMinimize} className="text-white/60 hover:text-white/90 p-0.5" title="Dismiss">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex-1">
-            <div className="text-3xl font-bold text-white font-mono">{formatDuration(timeRemaining)}</div>
-            <div className="h-1.5 bg-white/30 rounded-full mt-2 overflow-hidden">
+            <div className="text-2xl font-bold text-white font-mono">{formatDuration(timeRemaining)}</div>
+            <div className="h-1 bg-white/30 rounded-full mt-1 overflow-hidden">
               <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${progress * 100}%` }}></div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => onAddTime(-10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">-10s</button>
-            <button onClick={() => onAddTime(10)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">+10s</button>
-            <button onClick={onSkip} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium">Skip</button>
+          <div className="flex gap-1.5">
+            <button onClick={() => onAddTime(-10)} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">-10s</button>
+            <button onClick={() => onAddTime(10)} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">+10s</button>
+            <button onClick={onSkip} className="px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs font-medium">Skip</button>
           </div>
         </div>
       </div>
