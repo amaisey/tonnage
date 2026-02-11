@@ -535,17 +535,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setEditingRestTime(null);
   };
 
-  const cycleExercisePhase = (exIndex) => {
+  const setExercisePhase = (exIndex, newPhase) => {
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
-    const phases = ['warmup', 'workout', 'cooldown'];
-    const currentIdx = phases.indexOf(exercise.phase || 'workout');
-    exercise.phase = phases[(currentIdx + 1) % phases.length];
+    exercise.phase = newPhase;
     // If exercise is in a superset, update all exercises in the same superset
     if (exercise.supersetId) {
       updated.exercises.forEach(ex => {
         if (ex.supersetId === exercise.supersetId) {
-          ex.phase = exercise.phase;
+          ex.phase = newPhase;
         }
       });
     }
@@ -1194,13 +1192,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
                 {(!isSuperset || isFirst) && (
-                  <button
-                    onClick={() => cycleExercisePhase(exIndex)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${EXERCISE_PHASES[exercise.phase || 'workout'].textColor} bg-white/5 hover:bg-white/10 transition-colors`}
-                    title="Tap to change phase"
+                  <select
+                    value={exercise.phase || 'workout'}
+                    onChange={(e) => setExercisePhase(exIndex, e.target.value)}
+                    className={`text-[10px] pl-1 pr-0 py-0.5 rounded bg-white/5 border-none outline-none appearance-none cursor-pointer ${EXERCISE_PHASES[exercise.phase || 'workout'].textColor}`}
+                    style={{ WebkitAppearance: 'none', backgroundImage: 'none' }}
                   >
-                    {EXERCISE_PHASES[exercise.phase || 'workout'].icon} {EXERCISE_PHASES[exercise.phase || 'workout'].label}
-                  </button>
+                    {Object.entries(EXERCISE_PHASES).map(([key, phase]) => (
+                      <option key={key} value={key}>{phase.icon} {phase.label}</option>
+                    ))}
+                  </select>
                 )}
               </div>
             </div>
