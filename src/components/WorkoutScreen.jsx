@@ -246,8 +246,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const getDisplayRestTime = (exIndex, setIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
 
-    // Non-last superset exercises: no rest (you move straight to the next exercise)
+    // Non-last superset exercises: no rest between sets within the superset
     if (isNonLastInSuperset(exIndex)) {
+      // Exception: for set 0, if the previous exercise is NOT in this superset,
+      // the rest period came from that previous exercise (outside the superset)
+      if (setIndex === 0 && exIndex > 0) {
+        const prevExercise = activeWorkout.exercises[exIndex - 1];
+        if (!prevExercise.supersetId || prevExercise.supersetId !== exercise.supersetId) {
+          return prevExercise.restTime ?? 90;
+        }
+      }
       return 0;
     }
 
