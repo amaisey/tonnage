@@ -352,37 +352,68 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Bug #2/#16/#18: Get the rest time that should display above a given exercise/set
-  // This represents the TARGET rest time for the rest period BEFORE this set
+  // This represents the TARGET rest time for the rest period BEFORE this set.
+  // Once a set is completed, its rest time is locked in via restTimeAtCompletion
+  // so changing the exercise's rest time mid-rest won't retroactively update the target.
   const getDisplayRestTime = (exIndex, setIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
 
-    // Non-last superset exercises: no rest between sets within the superset
+    // Helper: get the locked-in rest time for a completed set, or the live value
+    const getLockedOrLive = (ex, sIdx) => {
+      const set = ex.sets?.[sIdx];
+      if (set?.completed && set.restTimeAtCompletion !== undefined) {
+        return set.restTimeAtCompletion;
+      }
+      return ex.restTime ?? 60;
+    };
+
+    // Non-last superset exercises
     if (isNonLastInSuperset(exIndex)) {
-      // Exception: for set 0, if the previous exercise is NOT in this superset,
+      // Set 0: if the previous exercise is NOT in this superset,
       // the rest period came from that previous exercise (outside the superset)
       if (setIndex === 0 && exIndex > 0) {
         const prevExercise = activeWorkout.exercises[exIndex - 1];
         if (!prevExercise.supersetId || prevExercise.supersetId !== exercise.supersetId) {
-          return prevExercise.restTime ?? 60;
+          const lastSetIdx = (prevExercise.sets?.length || 1) - 1;
+          return getLockedOrLive(prevExercise, lastSetIdx);
         }
+      }
+      // Sets > 0: rest came from the round transition (last superset exercise completed previous round)
+      // e.g. superset [A, B]: flow is A1→B1→(rest)→A2→B2→(rest)→A3
+      // Above A2, the rest target should be B's rest time from round 1
+      if (setIndex > 0) {
+        const supersetExercises = activeWorkout.exercises.filter(
+          ex => ex.supersetId === exercise.supersetId
+        );
+        const lastEx = supersetExercises[supersetExercises.length - 1];
+        const prevRoundSetIdx = setIndex - 1;
+        return getLockedOrLive(lastEx, prevRoundSetIdx);
       }
       return 0;
     }
 
-    // Last exercise in superset, set > 0: rest came from previous exercise
-    // in the superset (no rest between superset exercises within a round)
+    // Last exercise in superset, set > 0: rest came from this exercise completing the previous round
+    // e.g. superset [A, B]: above B2, the rest target is B's rest time from round 1
     if (exercise.supersetId && setIndex > 0) {
-      return 0;
+      const prevRoundSetIdx = setIndex - 1;
+      return getLockedOrLive(exercise, prevRoundSetIdx);
     }
 
-    // For set 1+ of any non-superset exercise: use that exercise's own rest time
-    if (setIndex > 0) return exercise.restTime ?? 60;
+    // For set 1+ of any non-superset exercise: use the previous set's locked-in value if completed
+    if (setIndex > 0) {
+      const prevSet = exercise.sets?.[setIndex - 1];
+      if (prevSet?.completed && prevSet.restTimeAtCompletion !== undefined) {
+        return prevSet.restTimeAtCompletion;
+      }
+      return exercise.restTime ?? 60;
+    }
 
     // For set 0: the target rest is whatever rest period happened BEFORE this exercise
-    // That means the previous exercise's rest time
+    // That means the previous exercise's last set's rest time
     if (exIndex > 0) {
       const prevExercise = activeWorkout.exercises[exIndex - 1];
-      return prevExercise.restTime ?? 60;
+      const lastSetIdx = (prevExercise.sets?.length || 1) - 1;
+      return getLockedOrLive(prevExercise, lastSetIdx);
     }
 
     return exercise.restTime ?? 60;
@@ -524,6 +555,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       playBeep();
       const now = Date.now();
       set.completedAt = now;
+      // Lock in the rest time that was active when this set was completed
+      // so changing rest time mid-rest doesn't retroactively update the target
+      set.restTimeAtCompletion = exercise.restTime ?? 60;
 
       // Bug #10: Check for rapid completions and redistribute time
       const recentCompletions = [];
@@ -1407,7 +1441,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active && !restTimerMinimized ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'

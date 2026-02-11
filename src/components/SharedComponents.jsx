@@ -927,6 +927,7 @@ const TimerScreen = () => {
 // Rest Timer Banner - shows during rest periods
 // Bug #6: Added minimize option
 const RestTimerBanner = ({ isActive, isMinimized, timeRemaining, totalTime, onSkip, onAddTime, onMinimize, onExpand, exerciseName }) => {
+  const bannerRef = useRef(null);
   const touchStartY = useRef(null);
   const touchDeltaY = useRef(0);
   const [dragOffset, setDragOffset] = useState(0);
@@ -938,36 +939,50 @@ const RestTimerBanner = ({ isActive, isMinimized, timeRemaining, totalTime, onSk
     setIsDragging(false);
   }, [isActive, isMinimized]);
 
+  // Use non-passive touch listeners so we can preventDefault to stop page scroll
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el || isMinimized) return;
+
+    const onTouchStart = (e) => {
+      touchStartY.current = e.touches[0].clientY;
+      touchDeltaY.current = 0;
+      setIsDragging(true);
+    };
+
+    const onTouchMove = (e) => {
+      if (touchStartY.current === null) return;
+      e.preventDefault(); // Prevent page scroll while dragging the banner
+      const delta = e.touches[0].clientY - touchStartY.current;
+      const clampedDelta = Math.min(0, delta);
+      touchDeltaY.current = clampedDelta;
+      setDragOffset(clampedDelta);
+    };
+
+    const onTouchEnd = () => {
+      setIsDragging(false);
+      if (touchDeltaY.current < -40) {
+        onMinimize?.();
+      }
+      setDragOffset(0);
+      touchStartY.current = null;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMinimized, onMinimize]);
+
   if (!isActive) return null;
 
   const progress = totalTime > 0 ? timeRemaining / totalTime : 0;
   const isUrgent = timeRemaining <= 10;
-
-  // Swipe-up gesture handlers for the expanded banner
-  const handleTouchStart = (e) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchDeltaY.current = 0;
-    setIsDragging(true);
-  };
-
-  const handleTouchMove = (e) => {
-    if (touchStartY.current === null) return;
-    const delta = e.touches[0].clientY - touchStartY.current;
-    // Only allow upward dragging (negative delta)
-    const clampedDelta = Math.min(0, delta);
-    touchDeltaY.current = clampedDelta;
-    setDragOffset(clampedDelta);
-  };
-
-  const handleTouchEnd = () => {
-    setIsDragging(false);
-    // If swiped up more than 40px, minimize
-    if (touchDeltaY.current < -40) {
-      onMinimize?.();
-    }
-    setDragOffset(0);
-    touchStartY.current = null;
-  };
 
   // Minimized: Dynamic Island pill
   if (isMinimized) {
@@ -999,16 +1014,15 @@ const RestTimerBanner = ({ isActive, isMinimized, timeRemaining, totalTime, onSk
 
   return (
     <div
+      ref={bannerRef}
       className="fixed left-0 right-0 mx-auto max-w-md z-40 px-4"
       style={{
         top: 'calc(env(safe-area-inset-top) + 3rem)',
         transform: `translateY(${dragOffset}px)`,
         opacity,
-        transition: isDragging ? 'none' : 'transform 0.3s ease, opacity 0.3s ease'
+        transition: isDragging ? 'none' : 'transform 0.3s ease, opacity 0.3s ease',
+        touchAction: 'none'
       }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       <div className={`rounded-2xl px-3 py-2 shadow-lg border ${isUrgent ? 'bg-orange-500/95 border-orange-400 animate-pulse' : 'bg-rose-700/95 border-rose-400'}`}>
         {/* Swipe handle */}
