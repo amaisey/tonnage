@@ -1037,8 +1037,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null}
             isNextExpected={isNextExpectedSet(exIndex, setIndex)}
             lastCompletionTimestamp={lastCompletionTimestamp}
-            frozenElapsed={getFrozenElapsed(exIndex, setIndex)}
-            hideRestRow={isNonLastInSuperset(exIndex)} />
+            frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className={`w-full ${c('mt-2 py-2','mt-1 py-1')} bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm`}>
