@@ -259,7 +259,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       return 0;
     }
 
-    // For set 1+ of any exercise: use that exercise's own rest time
+    // Last exercise in superset, set > 0: rest came from previous exercise
+    // in the superset (no rest between superset exercises within a round)
+    if (exercise.supersetId && setIndex > 0) {
+      return 0;
+    }
+
+    // For set 1+ of any non-superset exercise: use that exercise's own rest time
     if (setIndex > 0) return exercise.restTime ?? 90;
 
     // For set 0: the target rest is whatever rest period happened BEFORE this exercise
