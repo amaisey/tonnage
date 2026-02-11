@@ -185,6 +185,45 @@ function App() {
     setTemplates(prev => [...prev, newTemplate]);
   };
 
+  // Merge duplicate exercise into primary: rename in templates + history, delete duplicate
+  const handleMergeExercise = useCallback(async (primaryExercise, duplicateExercise) => {
+    const oldName = duplicateExercise.name;
+    const newName = primaryExercise.name;
+
+    // 1. Update templates: rename exercise references
+    setTemplates(prev => prev.map(template => ({
+      ...template,
+      exercises: template.exercises.map(ex =>
+        ex.name === oldName ? { ...ex, name: newName, bodyPart: primaryExercise.bodyPart, category: primaryExercise.category } : ex
+      )
+    })));
+
+    // 2. Update workout history in IndexedDB
+    try {
+      const allWorkouts = await workoutDb.getAll();
+      for (const workout of allWorkouts) {
+        const hasMatch = workout.exercises?.some(ex => ex.name === oldName);
+        if (hasMatch) {
+          const updated = {
+            ...workout,
+            exercises: workout.exercises.map(ex =>
+              ex.name === oldName ? { ...ex, name: newName } : ex
+            )
+          };
+          await workoutDb.put(updated);
+        }
+      }
+    } catch (err) {
+      console.error('Error updating history during merge:', err);
+    }
+
+    // 3. Remove the duplicate from exercises list
+    setExercises(prev => prev.filter(e => e.id !== duplicateExercise.id));
+
+    // 4. Refresh history view
+    setHistoryRefreshKey(k => k + 1);
+  }, [setTemplates, setExercises]);
+
   // Handle restoring data from backup
   const handleRestoreData = useCallback((data) => {
     if (data.exercises?.length > 0) setExercises(data.exercises);
@@ -228,6 +267,7 @@ function App() {
               onAddExercise={ex => setExercises([...exercises, ex])}
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
+              onMergeExercise={handleMergeExercise}
               onScroll={handleScroll}
               navVisible={!shouldHideNavbar}
             />

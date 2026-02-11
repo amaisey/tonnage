@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
-import { EditExerciseModal, ExerciseSearchModal, ExerciseDetailModal } from './SharedComponents';
+import { EditExerciseModal, ExerciseSearchModal, ExerciseDetailModal, MergeExerciseModal } from './SharedComponents';
 import { workoutDb } from '../db/workoutDb';
 
-const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, onScroll, navVisible }) => {
+const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteExercise, onMergeExercise, onScroll, navVisible }) => {
   const [search, setSearch] = useState('');
   const [selectedBodyPart, setSelectedBodyPart] = useState('All');
   const [editingExercise, setEditingExercise] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(null);
+  const [mergingExercise, setMergingExercise] = useState(null);
   const [history, setHistory] = useState([]);
 
   // Load history from IndexedDB when component mounts
@@ -106,7 +107,19 @@ const ExercisesScreen = ({ exercises, onAddExercise, onUpdateExercise, onDeleteE
           exercise={selectedExercise}
           history={history}
           onEdit={() => { setEditingExercise(selectedExercise); setSelectedExercise(null); }}
+          onMerge={() => { setMergingExercise(selectedExercise); setSelectedExercise(null); }}
           onClose={() => setSelectedExercise(null)}
+        />
+      )}
+      {mergingExercise && (
+        <MergeExerciseModal
+          exercise={mergingExercise}
+          allExercises={exercises}
+          onMerge={(primary, duplicate) => {
+            onMergeExercise(primary, duplicate);
+            setMergingExercise(null);
+          }}
+          onClose={() => setMergingExercise(null)}
         />
       )}
     </div>

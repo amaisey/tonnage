@@ -656,16 +656,25 @@ const EditExerciseModal = ({ exercise, onSave, onClose }) => {
   const [name, setName] = useState(exercise?.name || '');
   const [bodyPart, setBodyPart] = useState(exercise?.bodyPart || 'Other');
   const [category, setCategory] = useState(exercise?.category || 'barbell');
+  const [instructions, setInstructions] = useState(exercise?.instructions || '');
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave({ id: exercise?.id || Date.now(), name: name.trim(), bodyPart, category });
+    // Preserve all existing fields from the exercise, then overlay edits
+    onSave({
+      ...(exercise || {}),
+      id: exercise?.id || Date.now(),
+      name: name.trim(),
+      bodyPart,
+      category,
+      instructions: instructions.trim() || undefined
+    });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-white">{exercise ? 'Edit' : 'New'} Exercise</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
@@ -698,10 +707,150 @@ const EditExerciseModal = ({ exercise, onSave, onClose }) => {
               ))}
             </div>
           </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Instructions</label>
+            <textarea
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              placeholder="Cues, form notes, setup details..."
+              rows={3}
+              className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-600 resize-none"
+            />
+          </div>
         </div>
         <button onClick={handleSave} disabled={!name.trim()} className="w-full mt-6 bg-rose-700 text-white py-3 rounded-xl font-medium hover:bg-rose-800 disabled:opacity-50">
           {exercise ? 'Save Changes' : 'Create Exercise'}
         </button>
+      </div>
+    </div>
+  );
+};
+
+// Merge Exercise Modal - merge a duplicate into a primary exercise
+const MergeExerciseModal = ({ exercise, allExercises, onMerge, onClose }) => {
+  const [search, setSearch] = useState('');
+  const [selectedTarget, setSelectedTarget] = useState(null);
+  const [step, setStep] = useState('select'); // 'select' | 'confirm'
+
+  // Filter out the current exercise and match search
+  const candidates = allExercises
+    .filter(ex => ex.id !== exercise.id && ex.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleMerge = () => {
+    if (!selectedTarget) return;
+    // Keep the target (primary), delete the current exercise (duplicate)
+    // All history/templates referencing `exercise.name` → renamed to `selectedTarget.name`
+    onMerge(selectedTarget, exercise);
+    onClose();
+  };
+
+  const categoryMismatch = selectedTarget && selectedTarget.category !== exercise.category;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl w-full max-w-sm max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <h3 className="text-lg font-semibold text-white">
+            {step === 'select' ? 'Merge Exercise' : 'Confirm Merge'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
+        </div>
+
+        {step === 'select' && (
+          <div className="flex flex-col flex-1 overflow-hidden p-4">
+            <div className="bg-white/5 rounded-xl p-3 mb-3 border border-white/10">
+              <div className="text-xs text-gray-500 mb-1">Merging away (will be deleted)</div>
+              <div className="text-white font-medium">{exercise.name}</div>
+              <div className="text-xs text-gray-400">{exercise.bodyPart} · {CATEGORIES[exercise.category]?.label}</div>
+            </div>
+
+            <label className="text-sm text-gray-400 mb-2 block">Select the exercise to keep:</label>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search exercises..."
+              className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-600 mb-3"
+            />
+
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+              {candidates.map(ex => (
+                <button
+                  key={ex.id}
+                  onClick={() => setSelectedTarget(ex)}
+                  className={`w-full text-left p-3 rounded-xl transition-colors ${
+                    selectedTarget?.id === ex.id
+                      ? 'bg-cyan-900/50 border border-cyan-500/50'
+                      : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="text-white font-medium text-sm">{ex.name}</div>
+                  <div className="text-xs text-gray-400">{ex.bodyPart} · {CATEGORIES[ex.category]?.label}</div>
+                </button>
+              ))}
+              {candidates.length === 0 && (
+                <div className="text-center text-gray-500 py-4 text-sm">No matching exercises</div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setStep('confirm')}
+              disabled={!selectedTarget}
+              className="w-full mt-3 bg-cyan-700 text-white py-3 rounded-xl font-medium hover:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
+
+        {step === 'confirm' && selectedTarget && (
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <div className="bg-red-900/20 rounded-xl p-3 border border-red-500/20">
+                <div className="text-xs text-red-400 mb-1">Will be deleted</div>
+                <div className="text-white font-medium">{exercise.name}</div>
+                <div className="text-xs text-gray-400">{exercise.bodyPart} · {CATEGORIES[exercise.category]?.label}</div>
+              </div>
+              <div className="text-center text-gray-500 text-sm">↓ merges into ↓</div>
+              <div className="bg-green-900/20 rounded-xl p-3 border border-green-500/20">
+                <div className="text-xs text-green-400 mb-1">Will be kept</div>
+                <div className="text-white font-medium">{selectedTarget.name}</div>
+                <div className="text-xs text-gray-400">{selectedTarget.bodyPart} · {CATEGORIES[selectedTarget.category]?.label}</div>
+              </div>
+            </div>
+
+            {categoryMismatch && (
+              <div className="bg-amber-900/20 rounded-xl p-3 border border-amber-500/20">
+                <div className="text-xs text-amber-400 font-medium mb-1">Category mismatch</div>
+                <div className="text-xs text-gray-300">
+                  "{exercise.name}" is <span className="text-white">{CATEGORIES[exercise.category]?.label}</span> but
+                  "{selectedTarget.name}" is <span className="text-white">{CATEGORIES[selectedTarget.category]?.label}</span>.
+                  History will be kept but set fields may differ.
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-gray-500">
+              All workout history and template references for "{exercise.name}" will be updated to "{selectedTarget.name}".
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep('select')}
+                className="flex-1 bg-gray-800 text-gray-300 py-3 rounded-xl font-medium hover:bg-gray-700"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleMerge}
+                className="flex-1 bg-rose-700 text-white py-3 rounded-xl font-medium hover:bg-rose-800"
+              >
+                Merge
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -832,7 +981,7 @@ const CATEGORY_BACKGROUNDS = {
 };
 
 // Exercise Detail Modal with About, History, Charts, Records tabs
-const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
+const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose }) => {
   const [activeTab, setActiveTab] = useState('about');
   const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-1.jpg';
 
@@ -889,7 +1038,10 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
         <div className="relative z-10 h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="px-4 py-3 flex items-center justify-between">
             <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 border border-white/20"><Icons.X /></button>
-            <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>
+            <div className="flex items-center gap-2">
+              {onMerge && <button onClick={onMerge} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-cyan-300 font-medium hover:bg-white/20 border border-white/20 text-sm">Merge</button>}
+              <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>
+            </div>
           </div>
           <div className="flex-1 flex flex-col justify-end p-4">
             <h2 className="text-2xl font-bold text-white drop-shadow-lg">{exercise.name}</h2>
@@ -1077,4 +1229,4 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onClose }) => {
   );
 };
 
-export { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, ExerciseDetailModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal };
+export { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, ExerciseDetailModal, WorkoutCompleteModal, RestTimerBanner, CreateFolderModal, EditExerciseModal, MergeExerciseModal };
