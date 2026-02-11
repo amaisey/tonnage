@@ -224,6 +224,35 @@ function App() {
     setHistoryRefreshKey(k => k + 1);
   }, [setTemplates, setExercises]);
 
+  // Refresh defaults: merge in new/updated default exercises and templates without touching user data
+  const handleRefreshDefaults = useCallback(() => {
+    // 1. Exercises: add any new defaults not already in the list (match by name, case-insensitive)
+    const existingNames = new Set(exercises.map(e => e.name.toLowerCase()));
+    const newExercises = defaultExercises.filter(de => !existingNames.has(de.name.toLowerCase()));
+    if (newExercises.length > 0) {
+      setExercises(prev => [...prev, ...newExercises]);
+    }
+
+    // 2. Templates & folders: remove old defaults and add fresh ones (same logic as version check)
+    setTemplates(prev => {
+      const userTemplates = prev.filter(t => {
+        const id = String(t.id);
+        return !id.startsWith('sbcp-') && !id.startsWith('cc-') && !id.startsWith('ex-');
+      });
+      return [...userTemplates, ...sampleTemplates];
+    });
+    setFolders(prev => {
+      const userFolders = prev.filter(f => {
+        const id = String(f.id);
+        return !id.startsWith('sbcp') && !id.startsWith('cc-') && !id.startsWith('examples');
+      });
+      return [...userFolders, ...defaultFolders];
+    });
+    localStorage.setItem('template-version', String(TEMPLATE_VERSION));
+
+    return { newExercises: newExercises.length };
+  }, [exercises, setExercises, setTemplates, setFolders]);
+
   // Handle restoring data from backup
   const handleRestoreData = useCallback((data) => {
     if (data.exercises?.length > 0) setExercises(data.exercises);
@@ -344,6 +373,7 @@ function App() {
             templates={templates}
             folders={folders}
             onRestoreData={handleRestoreData}
+            onRefreshDefaults={handleRefreshDefaults}
           />
         )}
       </div>

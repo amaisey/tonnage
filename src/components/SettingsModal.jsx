@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import { workoutDb } from '../db/workoutDb';
 import { defaultExercises } from '../data/defaultExercises';
 
-export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData }) {
+export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, onRefreshDefaults }) {
   const [message, setMessage] = useState(null);
   const [workoutCount, setWorkoutCount] = useState(0);
 
@@ -54,6 +54,60 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                 <div className="text-gray-500 text-xs">Folders</div>
               </div>
             </div>
+          </div>
+
+          {/* Refresh Defaults */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-2">Refresh Defaults</h3>
+            <p className="text-gray-500 text-xs mb-3">
+              Pulls in any new default exercises and refreshes default templates. Your custom exercises, templates, and workout history are untouched.
+            </p>
+            <button
+              onClick={() => {
+                try {
+                  const result = onRefreshDefaults();
+                  const parts = [];
+                  if (result.newExercises > 0) parts.push(`${result.newExercises} new exercises added`);
+                  parts.push('default templates refreshed');
+                  setMessage({ type: 'success', text: parts.join(', ') });
+                } catch (err) {
+                  setMessage({ type: 'error', text: 'Refresh failed: ' + err.message });
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-cyan-700 hover:bg-cyan-800 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+            >
+              Refresh Defaults
+            </button>
+          </div>
+
+          {/* Reset App Data */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <h3 className="text-white font-medium mb-2">Reset App</h3>
+            <p className="text-gray-500 text-xs mb-3">
+              Clears all local data (exercises, templates, folders, history) and reloads with defaults. This cannot be undone.
+            </p>
+            <button
+              onClick={async () => {
+                if (!confirm('This will permanently delete ALL your data — exercises, templates, folders, and workout history. Continue?')) return;
+                try {
+                  // Clear IndexedDB (workout history)
+                  await workoutDb.clear();
+                  // Clear all localStorage keys used by the app
+                  localStorage.removeItem('workout-exercises');
+                  localStorage.removeItem('workout-templates');
+                  localStorage.removeItem('workout-folders');
+                  localStorage.removeItem('compactMode');
+                  localStorage.removeItem('template-version');
+                  setMessage({ type: 'success', text: 'Data cleared. Reloading...' });
+                  setTimeout(() => window.location.reload(), 1000);
+                } catch (err) {
+                  setMessage({ type: 'error', text: 'Reset failed: ' + err.message });
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-red-800 hover:bg-red-900 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+            >
+              Reset All Data
+            </button>
           </div>
 
           {/* Export Custom Exercises */}
