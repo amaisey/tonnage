@@ -1,13 +1,25 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
-import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
+import { formatDuration, getDefaultSetForCategory, generateTemplateAIExport, generateTemplateSummary } from '../utils/helpers';
 import { ExerciseSearchModal, CreateFolderModal } from './SharedComponents';
 import { CreateTemplateModal, ImportModal } from './ExercisesScreen';
 
 // Template Detail Modal - shows full template when clicking on summary
 const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
   const [collapsedPhases, setCollapsedPhases] = useState({});
+  const [copySuccess, setCopySuccess] = useState(''); // '' | 'ai' | 'text'
+
+  const copyToClipboard = async (type) => {
+    try {
+      const text = type === 'ai' ? generateTemplateAIExport(template) : generateTemplateSummary(template);
+      await navigator.clipboard.writeText(text);
+      setCopySuccess(type);
+      setTimeout(() => setCopySuccess(''), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
+  };
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -49,6 +61,12 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
           <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
           <h3 className="text-lg font-semibold text-white">{template.name}</h3>
           <div className="flex items-center gap-2">
+            <button onClick={() => copyToClipboard('text')} className="text-gray-400 hover:text-white p-2" title="Copy summary">
+              {copySuccess === 'text' ? <span className="text-green-400 text-xs font-medium">Copied!</span> : <Icons.Copy />}
+            </button>
+            <button onClick={() => copyToClipboard('ai')} className="text-gray-400 hover:text-white p-2" title="Copy JSON for AI">
+              {copySuccess === 'ai' ? <span className="text-green-400 text-xs font-medium">Copied!</span> : <Icons.Code />}
+            </button>
             <button onClick={() => { onEdit(template); onClose(); }} className="text-cyan-400 hover:text-cyan-300 p-2">
               <Icons.Edit />
             </button>
