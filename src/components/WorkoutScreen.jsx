@@ -3,8 +3,9 @@ import { Icons } from './Icons';
 import { CATEGORIES, EXERCISE_TYPES, BAND_COLORS, EXERCISE_PHASES, SUPERSET_COLORS } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { NumberPad, DurationPad, SetInputRow, ExerciseSearchModal, ExerciseDetailModal, RestTimerBanner } from './SharedComponents';
+import { workoutDb } from '../db/workoutDb';
 
-const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, history, onNumpadStateChange, onScroll, compactMode }) => {
+const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, getPreviousData, onNumpadStateChange, onScroll, compactMode }) => {
   // Bug #3: Compact mode class helper
   const c = (normal, compact) => compactMode ? compact : normal;
   const [showExerciseModal, setShowExerciseModal] = useState(false);
@@ -214,22 +215,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [activeWorkout?.exercises]);
 
-  // Get previous workout data for a specific exercise (returns full exercise with sets, restTime, notes, etc.)
-  const getPreviousExerciseData = (exerciseName) => {
-    if (!history || history.length === 0) return null;
-    for (const workout of history) {
-      const prevExercise = workout.exercises.find(ex => ex.name === exerciseName);
-      if (prevExercise && prevExercise.sets.some(s => s.completed)) {
-        return {
-          sets: prevExercise.sets.filter(s => s.completed),
-          restTime: prevExercise.restTime,
-          notes: prevExercise.notes,
-          phase: prevExercise.phase
-        };
-      }
-    }
-    return null;
-  };
+  // getPreviousData is passed as async prop from App (uses IndexedDB via usePreviousExerciseData hook)
 
   // Bug #7: Timestamp-based rest timer - derive remaining time from startedAt + totalTime
   useEffect(() => {
@@ -421,14 +407,21 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   // Add exercises (individually or as superset) - pre-fill with previous workout data
   // Bug #12: Now supports adding to specific phases via addToPhase state
-  const addExercises = (selectedExercises, asSuperset) => {
+  const addExercises = async (selectedExercises, asSuperset) => {
     const updated = { ...activeWorkout };
     const targetPhase = addToPhase || 'workout'; // Default to 'workout' phase
+
+    // Fetch previous data for all exercises in parallel
+    const prevDataMap = new Map();
+    await Promise.all(selectedExercises.map(async (ex) => {
+      const prevData = getPreviousData ? await getPreviousData(ex.name) : null;
+      prevDataMap.set(ex.name, prevData);
+    }));
 
     if (asSuperset && selectedExercises.length >= 2) {
       const supersetId = `superset-${Date.now()}`;
       selectedExercises.forEach((ex, i) => {
-        const prevData = getPreviousExerciseData(ex.name);
+        const prevData = prevDataMap.get(ex.name);
         const sets = prevData?.sets?.length > 0
           ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
@@ -436,7 +429,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         updated.exercises.push({
           ...ex,
           supersetId,
-          phase: targetPhase, // Bug #12: Assign to target phase
+          phase: targetPhase,
           // Non-last superset exercises: zero rest time (user can manually add back)
           restTime: isLast ? (prevData?.restTime || 60) : 0,
           notes: prevData?.notes || '',
@@ -446,13 +439,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       });
     } else {
       selectedExercises.forEach(ex => {
-        const prevData = getPreviousExerciseData(ex.name);
+        const prevData = prevDataMap.get(ex.name);
         const sets = prevData?.sets?.length > 0
           ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined }))
           : [getDefaultSetForCategory(ex.category)];
         updated.exercises.push({
           ...ex,
-          phase: targetPhase, // Bug #12: Assign to target phase
+          phase: targetPhase,
           restTime: prevData?.restTime || 60,
           notes: prevData?.notes || '',
           sets,
@@ -540,6 +533,23 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     updated.exercises[exIndex].restTime = restTime;
     setActiveWorkout(updated);
     setEditingRestTime(null);
+  };
+
+  const cycleExercisePhase = (exIndex) => {
+    const updated = { ...activeWorkout };
+    const exercise = updated.exercises[exIndex];
+    const phases = ['warmup', 'workout', 'cooldown'];
+    const currentIdx = phases.indexOf(exercise.phase || 'workout');
+    exercise.phase = phases[(currentIdx + 1) % phases.length];
+    // If exercise is in a superset, update all exercises in the same superset
+    if (exercise.supersetId) {
+      updated.exercises.forEach(ex => {
+        if (ex.supersetId === exercise.supersetId) {
+          ex.phase = exercise.phase;
+        }
+      });
+    }
+    setActiveWorkout(updated);
   };
 
   // Bug #10: Smart multi-set completion - detects rapid completions and distributes time evenly
@@ -1166,18 +1176,33 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={() => {
+                <button onClick={async () => {
                   setShowExerciseDetailModal(exercise);
-                  setExerciseDetailHistory(history);
+                  try {
+                    const workouts = await workoutDb.getAll();
+                    workouts.sort((a, b) => (b.date || b.startTime) - (a.date || a.startTime));
+                    setExerciseDetailHistory(workouts);
+                  } catch (err) {
+                    console.error('Error loading history:', err);
+                    setExerciseDetailHistory([]);
+                  }
                 }} className={`${c('font-semibold','text-sm font-medium')} text-white hover:text-cyan-400 transition-colors text-left`}>{exercise.name}</button>
                 {typeInfo && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
-                {phaseInfo && !isSuperset && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${phaseInfo.textColor} bg-white/5`}>{phaseInfo.icon}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
+                {(!isSuperset || isFirst) && (
+                  <button
+                    onClick={() => cycleExercisePhase(exIndex)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${EXERCISE_PHASES[exercise.phase || 'workout'].textColor} bg-white/5 hover:bg-white/10 transition-colors`}
+                    title="Tap to change phase"
+                  >
+                    {EXERCISE_PHASES[exercise.phase || 'workout'].icon} {EXERCISE_PHASES[exercise.phase || 'workout'].label}
+                  </button>
                 )}
               </div>
-              <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">

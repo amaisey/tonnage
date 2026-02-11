@@ -1072,9 +1072,9 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose }) =>
   const [activeTab, setActiveTab] = useState('about');
   const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-1.jpg';
 
-  // Get all instances of this exercise from history
-  const exerciseHistory = history.flatMap(workout =>
-    workout.exercises
+  // Get all instances of this exercise from history (guard against undefined/null)
+  const exerciseHistory = (history || []).flatMap(workout =>
+    (workout.exercises || [])
       .filter(ex => ex.name === exercise.name)
       .map(ex => ({
         ...ex,
