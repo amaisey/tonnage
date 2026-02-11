@@ -272,7 +272,7 @@ const DurationPad = ({ value, onChange, onClose, onNext, fieldLabel }) => {
 // Set Input Row Component with dual rest time display (elapsed + target)
 // Bug #13: Added swipe-to-delete functionality
 // Bug #3: Only shows timer if isNextExpected or has frozenElapsed
-const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, isNextExpected, lastCompletionTimestamp, frozenElapsed }) => {
+const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, restTime, previousSet, previousWorkoutSet, onOpenNumpad, onOpenBandPicker, activeField, isNextExpected, lastCompletionTimestamp, frozenElapsed, hideRestRow: forceHideRestRow }) => {
   const fields = CATEGORIES[category]?.fields || ['weight', 'reps'];
   const rowRef = useRef(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -383,8 +383,9 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     }
   };
 
-  // Bug #3: Only show the rest timer row if this is the next expected set OR has a frozen timer
-  const showRestRow = isNextExpected || (frozenElapsed !== null && frozenElapsed !== undefined);
+  // Bug #3/#18: Only show the rest timer row if this is the next expected set OR has a frozen timer
+  // forceHideRestRow suppresses the row entirely for non-last superset exercises
+  const showRestRow = !forceHideRestRow && (isNextExpected || (frozenElapsed !== null && frozenElapsed !== undefined));
 
   // Bug #13: Touch handlers for swipe-to-delete
   const handleTouchStart = (e) => {

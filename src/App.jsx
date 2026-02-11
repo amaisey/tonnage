@@ -12,9 +12,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { WorkoutCompleteModal } from './components/SharedComponents';
 import { workoutDb } from './db/workoutDb';
 import { usePreviousExerciseData } from './hooks/useWorkoutDb';
-import { useAuth } from './hooks/useAuth';
-import { useSyncManager } from './hooks/useSyncManager';
-import { queueSyncEntry } from './lib/syncService';
 
 function App() {
   const [activeTab, setActiveTab] = useState('workout');
@@ -29,21 +26,9 @@ function App() {
   const [navbarHiddenByScroll, setNavbarHiddenByScroll] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  // Bug #3: Compact mode
   const [compactMode, setCompactMode] = useLocalStorage('compactMode', false);
   const lastScrollY = useRef(0);
-
-  // Auth & Sync
-  const { user, isFirstLogin, clearFirstLogin } = useAuth();
-  const { syncStatus, lastSynced, pendingCount, syncNow } = useSyncManager(user, isFirstLogin, clearFirstLogin);
-
-  // Reset navbar and numpad state when there's no active workout (empty state shouldn't hide navbar)
-  useEffect(() => {
-    if (!activeWorkout) {
-      setNavbarHiddenByScroll(false);
-      setIsNumpadOpen(false); // Reset numpad state when workout ends
-      lastScrollY.current = 0;
-    }
-  }, [activeWorkout]);
 
   // Bug #8: Check if default templates need updating when app loads
   useEffect(() => {
@@ -65,6 +50,15 @@ function App() {
       localStorage.setItem('template-version', String(TEMPLATE_VERSION));
     }
   }, []);
+
+  // Reset navbar and numpad state when there's no active workout (empty state shouldn't hide navbar)
+  useEffect(() => {
+    if (!activeWorkout) {
+      setNavbarHiddenByScroll(false);
+      setIsNumpadOpen(false); // Reset numpad state when workout ends
+      lastScrollY.current = 0;
+    }
+  }, [activeWorkout]);
 
   // Scroll handler for hiding/showing navbar (only applies when there's scrollable content)
   const handleScroll = useCallback((scrollY) => {
@@ -110,16 +104,13 @@ function App() {
     const exercisesWithPrevData = await Promise.all(
       template.exercises.map(async (ex) => {
         const prevData = await getPreviousData(ex.name);
-        // Mark all pre-filled values as proposed (50% opacity) until user edits them
-        const sets = prevData?.sets?.length > 0
-          ? prevData.sets.map(s => ({ ...s, completed: false, completedAt: undefined, proposed: true, manuallyEdited: false }))
-          : ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
+        // Template is the source of truth for set count, values, and rest times.
+        // Previous data is only used for the PREV column display.
+        const sets = ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
         return {
           ...ex,
-          // Use previous rest time if available, otherwise template's, otherwise default
-          restTime: prevData?.restTime || ex.restTime || 90,
-          // Preserve previous notes if they exist
-          notes: prevData?.notes || ex.notes || '',
+          restTime: ex.restTime ?? 90,
+          notes: ex.notes || '',
           sets,
           previousSets: prevData?.sets
         };
@@ -150,17 +141,11 @@ function App() {
 
     try {
       // Save to IndexedDB
-      const localId = await workoutDb.add(completedWorkoutData);
+      await workoutDb.add(completedWorkoutData);
       // Clear the previous data cache so next workout gets fresh data
       clearCache();
       // Trigger history refresh
       setHistoryRefreshKey(k => k + 1);
-
-      // Queue for cloud sync if logged in
-      if (user) {
-        await queueSyncEntry('workout', localId, 'create', completedWorkoutData);
-        syncNow();
-      }
     } catch (err) {
       console.error('Error saving workout:', err);
     }
@@ -309,17 +294,9 @@ function App() {
             exercises={exercises}
             templates={templates}
             folders={folders}
-            activeWorkout={activeWorkout}
             onRestoreData={handleRestoreData}
-            setActiveWorkout={setActiveWorkout}
             compactMode={compactMode}
             setCompactMode={setCompactMode}
-            user={user}
-            syncStatus={syncStatus}
-            lastSynced={lastSynced}
-            pendingCount={pendingCount}
-            onSyncNow={syncNow}
-            onHistoryRefresh={() => setHistoryRefreshKey(k => k + 1)}
           />
         )}
       </div>

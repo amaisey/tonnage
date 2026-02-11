@@ -230,39 +230,37 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return true; // Different exercises / not in superset = rest timer
   };
 
-  // Bug #2/#16: Get the rest time that should display above a given exercise/set
-  // Superset-aware: exercises within a superset (non-last) always show 0
+  // Bug #18: Check if an exercise is a non-last member of a superset (should not show rest timer row)
+  const isNonLastInSuperset = (exIndex) => {
+    const exercise = activeWorkout.exercises[exIndex];
+    if (!exercise.supersetId) return false;
+    const supersetExercises = activeWorkout.exercises
+      .map((ex, idx) => ({ ex, idx }))
+      .filter(({ ex }) => ex.supersetId === exercise.supersetId);
+    const posInSuperset = supersetExercises.findIndex(({ idx }) => idx === exIndex);
+    return posInSuperset < supersetExercises.length - 1;
+  };
+
+  // Bug #2/#16/#18: Get the rest time that should display above a given exercise/set
+  // This represents the TARGET rest time for the rest period BEFORE this set
   const getDisplayRestTime = (exIndex, setIndex) => {
     const exercise = activeWorkout.exercises[exIndex];
 
-    // If this exercise is in a superset and is NOT the last exercise in the superset, rest is always 0
-    if (exercise.supersetId) {
-      const supersetExercises = activeWorkout.exercises
-        .map((ex, idx) => ({ ex, idx }))
-        .filter(({ ex }) => ex.supersetId === exercise.supersetId);
-      const posInSuperset = supersetExercises.findIndex(({ idx }) => idx === exIndex);
-      if (posInSuperset < supersetExercises.length - 1) {
-        return 0; // Non-last superset exercises always have 0 rest
-      }
-      // Last exercise in superset: use its own rest time
-      if (setIndex > 0) return exercise.restTime ?? 90;
-      // For set 0 of last-in-superset, use the rest time before the superset started
-      if (exIndex > 0) {
-        // Find the first exercise in this superset, then look at the exercise before it
-        const firstInSuperset = supersetExercises[0].idx;
-        if (firstInSuperset > 0) {
-          return activeWorkout.exercises[firstInSuperset - 1].restTime ?? 90;
-        }
-      }
-      return exercise.restTime ?? 90;
+    // Non-last superset exercises: no rest (you move straight to the next exercise)
+    if (isNonLastInSuperset(exIndex)) {
+      return 0;
     }
 
-    // Non-superset exercise
+    // For set 1+ of any exercise: use that exercise's own rest time
     if (setIndex > 0) return exercise.restTime ?? 90;
-    // Set 0: find the previous exercise's rest time
+
+    // For set 0: the target rest is whatever rest period happened BEFORE this exercise
+    // That means the previous exercise's rest time
     if (exIndex > 0) {
-      return activeWorkout.exercises[exIndex - 1].restTime ?? 90;
+      const prevExercise = activeWorkout.exercises[exIndex - 1];
+      return prevExercise.restTime ?? 90;
     }
+
     return exercise.restTime ?? 90;
   };
 
@@ -1039,7 +1037,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null}
             isNextExpected={isNextExpectedSet(exIndex, setIndex)}
             lastCompletionTimestamp={lastCompletionTimestamp}
-            frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
+            frozenElapsed={getFrozenElapsed(exIndex, setIndex)}
+            hideRestRow={isNonLastInSuperset(exIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className={`w-full ${c('mt-2 py-2','mt-1 py-1')} bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm`}>

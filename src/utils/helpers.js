@@ -39,39 +39,6 @@ export const generateStravaDescription = (workout) => {
   return description;
 };
 
-// Bug #16: Export a template as import-compatible JSON (for sharing / AI adjustment)
-export const exportTemplateJSON = (template) => {
-  const clean = {
-    name: template.name,
-  };
-  if (template.estimatedTime) clean.estimatedTime = template.estimatedTime;
-  if (template.notes) clean.notes = template.notes;
-  clean.exercises = template.exercises.map(ex => {
-    const exercise = {
-      name: ex.name,
-      bodyPart: ex.bodyPart,
-      category: ex.category,
-    };
-    if (ex.phase && ex.phase !== 'workout') exercise.phase = ex.phase;
-    if (ex.restTime !== undefined) exercise.restTime = ex.restTime;
-    if (ex.supersetId) exercise.supersetId = ex.supersetId;
-    if (ex.highlight) exercise.highlight = true;
-    if (ex.notes) exercise.notes = ex.notes;
-    exercise.sets = ex.sets.map(s => {
-      const set = {};
-      if (s.weight !== undefined && s.weight !== '') set.weight = s.weight;
-      if (s.reps !== undefined && s.reps !== '') set.reps = s.reps;
-      if (s.duration !== undefined && s.duration !== '') set.duration = s.duration;
-      if (s.distance !== undefined && s.distance !== '') set.distance = s.distance;
-      if (s.bandColor) set.bandColor = s.bandColor;
-      if (s.assistedWeight !== undefined && s.assistedWeight !== '') set.assistedWeight = s.assistedWeight;
-      return set;
-    });
-    return exercise;
-  });
-  return JSON.stringify(clean, null, 2);
-};
-
 export const exportWorkoutJSON = (workout) => {
   return JSON.stringify({
     name: workout.name,

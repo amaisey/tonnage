@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
-import { formatDuration, getDefaultSetForCategory, exportTemplateJSON } from '../utils/helpers';
+import { formatDuration, getDefaultSetForCategory } from '../utils/helpers';
 import { ExerciseSearchModal, CreateFolderModal } from './SharedComponents';
 import { CreateTemplateModal, ImportModal } from './ExercisesScreen';
 
 // Template Detail Modal - shows full template when clicking on summary
 const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
   const [collapsedPhases, setCollapsedPhases] = useState({});
-  const [jsonCopied, setJsonCopied] = useState(false); // Bug #16: Copy template JSON
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -82,21 +81,6 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit }) => {
             </div>
           </div>
         )}
-
-        {/* Bug #16: Copy template JSON for sharing / AI adjustment */}
-        <button onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(exportTemplateJSON(template));
-            setJsonCopied(true);
-            setTimeout(() => setJsonCopied(false), 2000);
-          } catch (err) {
-            console.error('Clipboard write failed:', err);
-          }
-        }} className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 mb-4 ${
-          jsonCopied ? 'bg-green-600 text-white' : 'bg-teal-600/30 text-teal-400 hover:bg-teal-600/40 border border-teal-600/30'
-        }`}>
-          {jsonCopied ? '✓ JSON Copied!' : <><Icons.Copy /> Copy Template JSON</>}
-        </button>
 
         {Object.entries(EXERCISE_PHASES).map(([phaseKey, phaseInfo]) => {
           const phaseExercises = exercisesByPhase[phaseKey];
