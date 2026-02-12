@@ -33,11 +33,16 @@ self.addEventListener('activate', event => {
 
 // Fetch event - network first, then cache (same-origin GET only)
 self.addEventListener('fetch', event => {
-  // Skip cross-origin requests entirely (Supabase API, external CDNs, etc.)
-  // Let the browser handle these directly without any SW interference
-  if (!event.request.url.startsWith(self.location.origin)) return;
+  // Cross-origin requests (Supabase API, external CDNs, etc.):
+  // Explicitly pass through to the network via respondWith(fetch()).
+  // A bare "return" without respondWith() causes Brave browser to stall
+  // subsequent cross-origin requests after the first batch completes.
+  if (!event.request.url.startsWith(self.location.origin)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
-  // Only cache GET requests — never interfere with POST/PUT/DELETE
+  // Only cache same-origin GET requests — never interfere with POST/PUT/DELETE
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
