@@ -1,8 +1,19 @@
 import { supabase } from './supabase'
 import { db } from '../db/workoutDb'
 
-// Timeout for each fetchAll operation (covers all pages for one table)
-const FETCH_TIMEOUT_MS = 30000
+// Timeout for individual Supabase requests
+const REQUEST_TIMEOUT_MS = 15000
+// Timeout for fetchAll (may span multiple pages)
+const FETCH_ALL_TIMEOUT_MS = 30000
+
+// ============================================================
+// Helper: create an AbortController that auto-aborts after ms
+// ============================================================
+function timedAbort(ms) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  return { signal: controller.signal, clear: () => clearTimeout(timeoutId) }
+}
 
 // ============================================================
 // Push local changes to Supabase
@@ -17,6 +28,8 @@ export async function pushToCloud(userId) {
   const errors = []
 
   for (const item of queue) {
+    const { signal, clear } = timedAbort(REQUEST_TIMEOUT_MS)
+
     try {
       const table = item.entityType + 's' // 'workout' → 'workouts'
 
@@ -34,6 +47,7 @@ export async function pushToCloud(userId) {
           })
           .select('id')
           .single()
+          .abortSignal(signal)
 
         if (error) throw error
 
@@ -49,6 +63,7 @@ export async function pushToCloud(userId) {
           .update({ ...item.payload, updated_at: new Date().toISOString() })
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
+          .abortSignal(signal)
 
         if (error) throw error
       }
@@ -59,6 +74,7 @@ export async function pushToCloud(userId) {
           .update({ deleted_at: new Date().toISOString() })
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
+          .abortSignal(signal)
 
         if (error) throw error
       }
@@ -67,8 +83,14 @@ export async function pushToCloud(userId) {
       await db.syncQueue.delete(item.id)
       pushed++
     } catch (err) {
-      console.error('Sync push error for item:', item, err)
+      if (err.name === 'AbortError') {
+        console.warn(`Push timed out for ${item.entityType}/${item.entityId}`)
+      } else {
+        console.error('Sync push error for item:', item, err)
+      }
       errors.push({ item, error: err })
+    } finally {
+      clear()
     }
   }
 
@@ -84,14 +106,13 @@ export async function pullFromCloud(userId, lastSyncedAt) {
   const since = lastSyncedAt || '1970-01-01T00:00:00Z'
 
   // Paginated fetch helper — Supabase caps at 1000 rows per query.
-  // Uses AbortController to timeout after FETCH_TIMEOUT_MS so requests
+  // Uses AbortController to timeout after FETCH_ALL_TIMEOUT_MS so requests
   // don't hang forever (observed in Brave with SW registered).
   async function fetchAll(table, filters = {}) {
     const PAGE_SIZE = 1000
     let allData = []
     let from = 0
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    const { signal, clear } = timedAbort(FETCH_ALL_TIMEOUT_MS)
 
     try {
       while (true) {
@@ -100,7 +121,7 @@ export async function pullFromCloud(userId, lastSyncedAt) {
           .gt('updated_at', since)
           .is('deleted_at', null)
           .range(from, from + PAGE_SIZE - 1)
-          .abortSignal(controller.signal)
+          .abortSignal(signal)
 
         if (filters.order) {
           query = query.order(filters.order.column, { ascending: filters.order.ascending })
@@ -117,7 +138,7 @@ export async function pullFromCloud(userId, lastSyncedAt) {
 
       return allData
     } finally {
-      clearTimeout(timeoutId)
+      clear()
     }
   }
 
@@ -174,9 +195,15 @@ export async function pullFromCloud(userId, lastSyncedAt) {
 
   // Update last synced timestamp on server (best-effort, don't block on failure)
   try {
-    await supabase.from('user_profiles')
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq('id', userId)
+    const { signal, clear } = timedAbort(REQUEST_TIMEOUT_MS)
+    try {
+      await supabase.from('user_profiles')
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq('id', userId)
+        .abortSignal(signal)
+    } finally {
+      clear()
+    }
   } catch (profileErr) {
     console.warn('user_profiles update failed (non-fatal):', profileErr)
   }
