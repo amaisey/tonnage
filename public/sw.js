@@ -23,7 +23,6 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -32,12 +31,15 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch event - network first, then cache
+// Fetch event - network first, then cache (same-origin only)
 self.addEventListener('fetch', event => {
+  // Skip cross-origin requests (Supabase API, external CDNs, etc.)
+  // Let the browser handle these directly without SW interference
+  if (!event.request.url.startsWith(self.location.origin)) return;
+
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Cache successful responses
         if (response && response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then(cache => {
@@ -47,7 +49,6 @@ self.addEventListener('fetch', event => {
         return response;
       })
       .catch(() => {
-        // Fallback to cache if offline
         return caches.match(event.request);
       })
   );

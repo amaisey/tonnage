@@ -23,7 +23,7 @@ export async function pushToCloud(userId) {
           .upsert({
             ...item.payload,
             user_id: userId,
-            local_id: item.entityId,
+            local_id: String(item.entityId),
             updated_at: new Date().toISOString()
           }, {
             onConflict: 'user_id,local_id',
@@ -45,7 +45,7 @@ export async function pushToCloud(userId) {
           .from(table)
           .update({ ...item.payload, updated_at: new Date().toISOString() })
           .eq('user_id', userId)
-          .eq('local_id', item.entityId)
+          .eq('local_id', String(item.entityId))
 
         if (error) throw error
       }
@@ -55,7 +55,7 @@ export async function pushToCloud(userId) {
           .from(table)
           .update({ deleted_at: new Date().toISOString() })
           .eq('user_id', userId)
-          .eq('local_id', item.entityId)
+          .eq('local_id', String(item.entityId))
 
         if (error) throw error
       }
@@ -126,9 +126,10 @@ export async function pullFromCloud(userId, lastSyncedAt) {
       .first()
 
     if (!existing) {
-      // Check if we have it by local_id
-      const byLocalId = w.local_id
-        ? await db.workouts.get(w.local_id)
+      // Check if we have it by local_id — coerce to number since Dexie uses ++id (integer)
+      const localIdNum = w.local_id ? Number(w.local_id) : null
+      const byLocalId = (localIdNum && !isNaN(localIdNum))
+        ? await db.workouts.get(localIdNum)
         : null
 
       if (byLocalId && !byLocalId.cloudId) {
@@ -159,10 +160,14 @@ export async function pullFromCloud(userId, lastSyncedAt) {
   // Merge folders
   pulled += mergeIntoLocalStorage('workout-folders', foldersData || [], 'name')
 
-  // Update last synced timestamp
-  await supabase.from('user_profiles')
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq('id', userId)
+  // Update last synced timestamp on server (best-effort, don't block on failure)
+  try {
+    await supabase.from('user_profiles')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', userId)
+  } catch (profileErr) {
+    console.warn('user_profiles update failed (non-fatal):', profileErr)
+  }
 
   return { pulled }
 }
@@ -183,7 +188,7 @@ export async function mergeOnFirstLogin(userId) {
     for (let i = 0; i < allWorkouts.length; i += BATCH_SIZE) {
       const batch = allWorkouts.slice(i, i + BATCH_SIZE).map(w => ({
         user_id: userId,
-        local_id: w.id,
+        local_id: String(w.id),
         name: w.name,
         notes: w.notes || null,
         start_time: w.startTime || w.date,
@@ -201,10 +206,13 @@ export async function mergeOnFirstLogin(userId) {
       if (error) {
         console.error('Batch upload error:', error)
       } else if (data) {
-        // Store cloud IDs back on local records
+        // Store cloud IDs back on local records — coerce local_id back to number
         for (const row of data) {
           if (row.local_id) {
-            await db.workouts.update(row.local_id, { cloudId: row.id })
+            const localIdNum = Number(row.local_id)
+            if (!isNaN(localIdNum)) {
+              await db.workouts.update(localIdNum, { cloudId: row.id })
+            }
           }
         }
       }
@@ -271,9 +279,13 @@ export async function mergeOnFirstLogin(userId) {
   }
 
   // Update sync timestamp
-  await supabase.from('user_profiles')
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq('id', userId)
+  try {
+    await supabase.from('user_profiles')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', userId)
+  } catch (err) {
+    console.warn('user_profiles update failed (non-fatal):', err)
+  }
 
   console.log('First login merge complete')
 }
