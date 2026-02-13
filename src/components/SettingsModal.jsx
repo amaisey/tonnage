@@ -337,6 +337,24 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                         {diagResult.select === 'PASS' && diagResult.details?.select?.name && (
                           <div className="text-gray-400 mt-1">Verified: name={diagResult.details.select.name}, duration_ms={diagResult.details.select.duration_ms}</div>
                         )}
+                        {diagResult.cloud && (
+                          <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+                            <div className="text-cyan-400 font-bold">Cloud Inventory:</div>
+                            {diagResult.cloud.error ? (
+                              <div className="text-red-400">{diagResult.cloud.error}</div>
+                            ) : (
+                              <>
+                                <div className="text-gray-300">Cloud total: {diagResult.cloud.total} | Active (no deleted_at): {diagResult.cloud.active} | Pullable: {diagResult.cloud.pullable}</div>
+                                <div className="text-gray-300">Local: {diagResult.cloud.localCount} | Last sync: {diagResult.cloud.localSyncTimestamp || 'null'}</div>
+                                {diagResult.cloud.recentCloud?.map((w, i) => (
+                                  <div key={i} className={`text-gray-400 ${w.deleted_at ? 'text-red-400/60' : ''}`}>
+                                    #{i+1} {w.name} (id:{w.local_id}) {w.deleted_at ? `DEL:${w.deleted_at}` : ''}
+                                  </div>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

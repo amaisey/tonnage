@@ -503,6 +503,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       });
     }
     setActiveWorkout(updated);
+
+    // Recalculate expectedNext if green bar was hidden (all sets were complete)
+    if (!expectedNext) {
+      for (let i = 0; i < updated.exercises.length; i++) {
+        const setIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
+        if (setIdx >= 0) {
+          setExpectedNext({ exIndex: i, setIndex: setIdx });
+          break;
+        }
+      }
+    }
+
     setShowExerciseModal(false);
     setAddToPhase(null); // Reset target phase
   };

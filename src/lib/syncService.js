@@ -542,6 +542,59 @@ export async function testCloudAccess(userId) {
     results.details.delete = { message: err.message }
   }
 
+  // 5. Cloud inventory — what's actually in the cloud?
+  try {
+    // Total cloud workouts (including soft-deleted)
+    const { count: totalCloud } = await supabase
+      .from('workouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+
+    // Active cloud workouts (deleted_at IS NULL)
+    const { count: activeCloud } = await supabase
+      .from('workouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+
+    // What pull would fetch (updated_at > '1970...' AND deleted_at IS NULL)
+    const { count: pullableCount } = await supabase
+      .from('workouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gt('updated_at', '1970-01-01T00:00:00Z')
+      .is('deleted_at', null)
+
+    // Most recent 3 cloud workouts by date
+    const { data: recentCloud } = await supabase
+      .from('workouts')
+      .select('local_id, name, date, updated_at, deleted_at')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(3)
+
+    // Local workout count
+    const localCount = await db.workouts.count()
+    const localSyncTimestamp = localStorage.getItem('tonnage-local-last-synced')
+
+    results.cloud = {
+      total: totalCloud,
+      active: activeCloud,
+      pullable: pullableCount,
+      localCount,
+      localSyncTimestamp,
+      recentCloud: recentCloud?.map(w => ({
+        local_id: w.local_id,
+        name: w.name?.substring(0, 30),
+        date: w.date,
+        updated_at: w.updated_at,
+        deleted_at: w.deleted_at
+      }))
+    }
+  } catch (err) {
+    results.cloud = { error: err.message }
+  }
+
   return results
 }
 
