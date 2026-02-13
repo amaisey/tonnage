@@ -1582,8 +1582,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-0.5 py-0.5 bg-transparent hover:bg-white/5 rounded text-teal-400/60 flex items-center justify-center gap-1 text-[10px]">
-          <Icons.Plus /> Add Set
+          className="w-full mt-0 py-0 leading-none bg-transparent hover:bg-white/5 rounded text-teal-400/40 flex items-center justify-center gap-0.5 text-[9px]">
+          <Icons.Plus /> Set
         </button>
       </div>
       {/* Bug #9: Drag insertion indicator - show after last card */}
