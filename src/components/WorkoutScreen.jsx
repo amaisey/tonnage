@@ -148,6 +148,38 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
   }, [activeWorkout?.exercises?.length]);
 
+  // Validate expectedNext on every workout change.
+  // If expectedNext points to a stale/completed/missing set, recalculate it.
+  // This catches edge cases from removeExercise, removeSet, addExercises, addSet, etc.
+  useEffect(() => {
+    if (!activeWorkout?.exercises) return;
+    const ex = activeWorkout.exercises;
+
+    // Check if current expectedNext is valid
+    const isValid = expectedNext &&
+      ex[expectedNext.exIndex] &&
+      ex[expectedNext.exIndex].sets[expectedNext.setIndex] &&
+      !ex[expectedNext.exIndex].sets[expectedNext.setIndex].completed;
+
+    if (isValid) return; // Current pointer is fine
+
+    // Find first incomplete set across all exercises
+    let firstIncomplete = null;
+    for (let i = 0; i < ex.length; i++) {
+      const setIdx = ex[i].sets.findIndex(s => !s.completed);
+      if (setIdx >= 0) {
+        firstIncomplete = { exIndex: i, setIndex: setIdx };
+        break;
+      }
+    }
+
+    // Only update if different from current value (avoid infinite loop)
+    if (firstIncomplete?.exIndex !== expectedNext?.exIndex ||
+        firstIncomplete?.setIndex !== expectedNext?.setIndex) {
+      setExpectedNext(firstIncomplete);
+    }
+  }, [activeWorkout]);
+
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
   };

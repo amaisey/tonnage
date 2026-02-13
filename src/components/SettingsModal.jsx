@@ -5,7 +5,7 @@ import { defaultExercises } from '../data/defaultExercises';
 import AuthModal from './AuthModal';
 import SyncStatus from './SyncStatus';
 import { useAuth } from '../hooks/useAuth';
-import { queueSyncEntry, replaceCloudWorkouts, testCloudAccess } from '../lib/syncService';
+import { queueSyncEntry, replaceCloudWorkouts } from '../lib/syncService';
 
 export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, user, syncStatus, lastSynced, pendingCount, onSyncNow, onHistoryRefresh }) {
   const [exporting, setExporting] = useState(false);
@@ -18,8 +18,6 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [diagResult, setDiagResult] = useState(null);
-  const [diagRunning, setDiagRunning] = useState(false);
   const { signOut } = useAuth();
 
   // Sign out and close modal for clear visual feedback
@@ -305,90 +303,6 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                     Sign Out
                   </button>
                 </div>
-                <button
-                  onClick={async () => {
-                    if (!confirm('This will replace ALL cloud data with local data. Continue?')) return;
-                    setMessage({ type: 'info', text: 'Full sync in progress...' });
-                    try {
-                      await replaceCloudWorkouts(user.id);
-                      localStorage.setItem('tonnage-local-last-synced', new Date().toISOString());
-                      setMessage({ type: 'success', text: 'Full sync complete! All local data pushed to cloud.' });
-                    } catch (err) {
-                      setMessage({ type: 'error', text: 'Full sync failed: ' + err.message });
-                    }
-                  }}
-                  className="w-full mt-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 py-2 px-4 rounded-xl text-xs font-medium transition-colors border border-amber-600/30"
-                >
-                  Force Full Sync (Replace Cloud)
-                </button>
-                <button
-                  onClick={async () => {
-                    setDiagRunning(true);
-                    setDiagResult(null);
-                    try {
-                      const r = await testCloudAccess(user.id);
-                      setDiagResult(r);
-                    } catch (err) {
-                      setDiagResult({ error: err.message });
-                    }
-                    setDiagRunning(false);
-                  }}
-                  disabled={diagRunning}
-                  className="w-full mt-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 py-2 px-4 rounded-xl text-xs font-medium transition-colors"
-                >
-                  {diagRunning ? 'Testing...' : 'Test Cloud Access'}
-                </button>
-                {diagResult && (
-                  <div className="mt-2 bg-black/30 rounded-lg p-3 text-xs font-mono space-y-1">
-                    {diagResult.error ? (
-                      <div className="text-red-400">{diagResult.error}</div>
-                    ) : (
-                      <>
-                        <div className="text-gray-400 mb-1">Queue: {diagResult.pendingQueue ?? '?'} pending</div>
-                        {['insert', 'upsert', 'select', 'delete'].map(op => (
-                          <div key={op} className={diagResult[op] === 'PASS' ? 'text-green-400' : diagResult[op] === 'FAIL' ? 'text-red-400' : 'text-gray-500'}>
-                            {op.toUpperCase()}: {diagResult[op] || 'N/A'} {diagResult[op] === 'FAIL' && diagResult.details?.[op]?.message ? `— ${diagResult.details[op].message}` : ''}
-                          </div>
-                        ))}
-                        {diagResult.select === 'PASS' && diagResult.details?.select?.name && (
-                          <div className="text-gray-400 mt-1">Verified: name={diagResult.details.select.name}, duration_ms={diagResult.details.select.duration_ms}</div>
-                        )}
-                        {diagResult.cloud && (
-                          <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
-                            <div className="text-cyan-400 font-bold">Cloud Inventory:</div>
-                            {diagResult.cloud.error ? (
-                              <div className="text-red-400">{diagResult.cloud.error}</div>
-                            ) : (
-                              <>
-                                <div className="text-gray-300">Cloud total: {diagResult.cloud.total} | Active: {diagResult.cloud.active} | Pullable: {diagResult.cloud.pullable}</div>
-                                <div className="text-gray-300">Local: {diagResult.cloud.localCount} | Last sync: {diagResult.cloud.localSyncTimestamp?.substring(11,19) || 'null'}</div>
-                                {diagResult.cloud.recentCloud?.map((w, i) => (
-                                  <div key={i} className={`text-gray-400 ${w.deleted_at ? 'text-red-400/60' : ''}`}>
-                                    #{i+1} {w.name} (id:{w.local_id}) {w.deleted_at ? `DEL:${w.deleted_at}` : ''}
-                                  </div>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        )}
-                        {(() => {
-                          try {
-                            const pushLog = JSON.parse(localStorage.getItem('tonnage-last-push-log') || '[]');
-                            if (pushLog.length > 0) return (
-                              <div className="mt-2 pt-2 border-t border-white/10 space-y-0.5">
-                                <div className="text-amber-400 font-bold">Last Push Log:</div>
-                                {pushLog.map((line, i) => (
-                                  <div key={i} className={`text-gray-400 ${line.includes('ERROR') || line.includes('CAUGHT') ? 'text-red-400' : line.includes(' OK') ? 'text-green-400' : ''}`}>{line}</div>
-                                ))}
-                              </div>
-                            );
-                          } catch(_) {}
-                          return null;
-                        })()}
-                      </>
-                    )}
-                  </div>
-                )}
               </>
             ) : (
               <button onClick={() => setShowAuth(true)} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 px-4 rounded-xl font-medium transition-colors">
