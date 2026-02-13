@@ -517,9 +517,12 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           {fields.length < 2 && <div></div>}
           {fields.slice(0, 2).map((field, idx) => renderInput(field, idx))}
           {fields.length > 2 && fields.slice(2).map((field, idx) => renderInput(field, idx + 2))}
-          <button onClick={onComplete} className={`p-1.5 rounded-lg justify-self-center ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-            <Icons.Check />
-          </button>
+          <div className="flex items-center gap-0.5 justify-self-center">
+            {set.rpe && <span className="text-[9px] text-amber-400 font-mono">{set.rpe}</span>}
+            <button onClick={onComplete} className={`p-1.5 rounded-lg ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+              <Icons.Check />
+            </button>
+          </div>
         </div>
       </div>
     </>

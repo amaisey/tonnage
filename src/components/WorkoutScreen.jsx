@@ -77,45 +77,55 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Initialize audio context on first user interaction
-  // iOS requires playing a silent buffer via user gesture to unlock audio
-  const initAudio = () => {
-    if (audioInitialized.current) return;
+  // iOS audio unlock — must create/resume AudioContext AND play a buffer
+  // all within the same user gesture. Keep retrying until it actually works.
+  const initAudio = async () => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      audioContextRef.current = ctx;
-      // Play a silent buffer to unlock iOS audio
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      // Play a silent buffer to fully unlock iOS audio pipeline
       const silentBuffer = ctx.createBuffer(1, 1, 22050);
       const source = ctx.createBufferSource();
       source.buffer = silentBuffer;
       source.connect(ctx.destination);
       source.start(0);
-      // Resume if suspended (iOS)
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
       audioInitialized.current = true;
     } catch (e) {
       console.log('Audio init failed:', e);
     }
   };
 
-  // Unlock audio on first touch anywhere in the workout screen
+  // Keep trying to unlock on every touch/click until it succeeds.
+  // iOS sometimes needs multiple gesture-triggered attempts.
   useEffect(() => {
-    const unlock = () => { initAudio(); };
-    document.addEventListener('touchstart', unlock, { once: true });
-    document.addEventListener('click', unlock, { once: true });
+    const unlock = async () => {
+      await initAudio();
+      if (audioInitialized.current && audioContextRef.current?.state === 'running') {
+        document.removeEventListener('touchstart', unlock);
+        document.removeEventListener('touchend', unlock);
+        document.removeEventListener('click', unlock);
+      }
+    };
+    document.addEventListener('touchstart', unlock);
+    document.addEventListener('touchend', unlock);
+    document.addEventListener('click', unlock);
     return () => {
       document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('touchend', unlock);
       document.removeEventListener('click', unlock);
     };
   }, []);
 
   const playBeep = async (frequency = 880, duration = 0.15, volume = 0.3) => {
-    initAudio();
+    await initAudio();
     const ctx = audioContextRef.current;
-    if (!ctx) return;
+    if (!ctx || ctx.state !== 'running') return;
     try {
-      if (ctx.state === 'suspended') await ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -132,11 +142,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   const playRestTimerAlarm = async () => {
-    initAudio();
+    await initAudio();
     const ctx = audioContextRef.current;
-    if (!ctx) return;
+    if (!ctx || ctx.state !== 'running') return;
     try {
-      if (ctx.state === 'suspended') await ctx.resume();
       // Three ascending tones
       [0, 0.2, 0.4].forEach((delay, i) => {
         const osc = ctx.createOscillator();
@@ -216,6 +225,22 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
   };
+
+  // Auto-collapse warmup/workout phases when all sets in that phase are complete
+  const prevPhaseComplete = useRef({ warmup: false, workout: false });
+  useEffect(() => {
+    if (!activeWorkout?.exercises) return;
+    ['warmup', 'workout'].forEach(phase => {
+      const phaseExercises = activeWorkout.exercises.filter(e => (e.phase || 'workout') === phase);
+      if (phaseExercises.length === 0) return;
+      const allComplete = phaseExercises.every(e => e.sets?.every(s => s.completed));
+      // Only auto-collapse on transition from incomplete → complete (not on load)
+      if (allComplete && !prevPhaseComplete.current[phase]) {
+        setCollapsedPhases(prev => ({ ...prev, [phase]: true }));
+      }
+      prevPhaseComplete.current[phase] = allComplete;
+    });
+  }, [activeWorkout]);
 
   // Auto-scroll to next set when green bar triggers a completion
   // Position the exercise card about 30% from top of viewport (20% above center)
@@ -1065,10 +1090,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setDragState(null);
   };
 
-  // Helper: after a reorder, force expectedNext recalculation via the useEffect validator.
-  // Temporarily set to null so the validator finds the first incomplete in phase order.
+  // Helper: after a reorder, force full timer/next-set reset.
+  // Nulls expectedNext (validator useEffect recalculates), clears all frozen timers,
+  // and resets the live timer anchor so stale index-based state doesn't persist.
   const remapExpectedNext = () => {
-    setExpectedNext(null); // Validator useEffect will recalculate in phase order
+    setExpectedNext(null);
+    setFrozenElapsed({});
+    setLastCompletionTimestamp(null);
   };
 
   const dropExercise = (targetIndex, targetPhase) => {
@@ -1381,7 +1409,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `p-4 rounded-2xl mb-4`} transition-transform`}>
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-4 px-4 pb-1 rounded-2xl mb-3`} transition-transform`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
@@ -1433,11 +1461,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)} className="text-xs text-gray-400 px-2 py-1 rounded hover:bg-white/10">
               ⏱️ {formatDuration(exerciseRestTime)}
             </button>
-            {/* Link button - show if there's a next exercise in the same phase and this is the last in its group */}
+            {/* Link button - show if the immediately next exercise is in the same phase and linkable */}
             {(() => {
               const currentPhase = exercise.phase || 'workout';
-              const hasNextInPhase = activeWorkout.exercises.some((ex, idx) => idx > exIndex && (ex.phase || 'workout') === currentPhase);
-              return hasNextInPhase && (!isSuperset || isLast);
+              const nextEx = activeWorkout.exercises[exIndex + 1];
+              if (!nextEx) return false; // Last exercise overall
+              if ((nextEx.phase || 'workout') !== currentPhase) return false; // Next exercise is in a different phase
+              if (!isSuperset && !isLast) return false; // In a superset but not the last — can't link further
+              return (!isSuperset || isLast); // Show if standalone or last in its superset
             })() && (
               <button
                 onClick={() => linkWithNext(exIndex)}
@@ -1457,15 +1488,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                 <Icons.Unlink />
               </button>
             )}
-            {/* Delete button with confirmation */}
-            {deleteConfirmIndex === exIndex ? (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => removeExercise(exIndex)} className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded whitespace-nowrap">Del</button>
-                <button onClick={() => setDeleteConfirmIndex(null)} className="text-[10px] text-gray-400 px-1 whitespace-nowrap">✕</button>
-              </div>
-            ) : (
-              <button onClick={() => setDeleteConfirmIndex(exIndex)} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"><Icons.X /></button>
-            )}
+            {/* Delete button — triggers modal */}
+            <button onClick={() => setDeleteConfirmIndex(exIndex)} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"><Icons.X /></button>
           </div>
         </div>
 
@@ -1514,12 +1538,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
-        {/* Instructions (from template/exercise library — read-only, compact) */}
-        {exercise.instructions && (
-          <div className="mb-0.5 px-1 py-0.5">
-            <p className="text-[10px] text-gray-500 italic truncate">📋 {exercise.instructions}</p>
-          </div>
-        )}
 
         {/* Workout-specific notes — tappable to edit */}
         {editingExNotes?.exIndex === exIndex ? (
@@ -1673,10 +1691,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
-            <div className="overflow-x-auto scrollbar-hide">
+            <div>
               <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-                className="text-xl font-bold text-white bg-transparent border-none focus:outline-none whitespace-nowrap"
-                style={{ minWidth: `${Math.max(activeWorkout.name.length * 0.65, 6)}em` }} />
+                className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full truncate" />
             </div>
             {/* Bug #15: Pace tracking display */}
             {(() => {
@@ -1845,9 +1862,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-2.5 bg-green-500/70 hover:w-4 hover:bg-green-500'}`}
           style={{
-            bottom: numpadState ? '17rem' : '33%',
-            height: numpadState ? '20%' : '34%',
-            top: numpadState ? 'auto' : '33%',
+            top: numpadState ? '15%' : '33%',
+            height: numpadState ? '25%' : '34%',
             borderRadius: '8px 0 0 8px',
           }}
         >
@@ -1857,15 +1873,17 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Floating Undo Button */}
-      {undoAvailable > 0 && !numpadState && !dragState && !dragTouch && (
+      {/* Undo bar — left side, mirrors green "next" bar on right */}
+      {undoAvailable > 0 && !dragState && !dragTouch && (
         <button
           onClick={handleUndo}
-          className="fixed left-3 bottom-24 z-30 bg-gray-800/90 backdrop-blur-sm border border-gray-600/50 text-white rounded-full px-3 py-2 flex items-center gap-1.5 shadow-lg hover:bg-gray-700/90 active:scale-95 transition-transform"
+          className="fixed left-0 z-30 flex items-center justify-center transition-all duration-300 ease-out w-2.5 bg-rose-900/70 hover:w-4 hover:bg-rose-800 active:w-10 active:bg-rose-700"
+          style={{
+            top: numpadState ? '15%' : '33%',
+            height: numpadState ? '25%' : '34%',
+            borderRadius: '0 8px 8px 0',
+          }}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
-          <span className="text-xs font-medium">Undo</span>
-          {undoAvailable > 1 && <span className="text-xs text-gray-400">({undoAvailable})</span>}
         </button>
       )}
 
@@ -1944,6 +1962,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         );
       })()}
+
+      {/* Delete Exercise Confirmation Modal */}
+      {deleteConfirmIndex !== null && activeWorkout.exercises[deleteConfirmIndex] && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-white mb-2">Remove Exercise?</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Remove "{activeWorkout.exercises[deleteConfirmIndex].name}" and all its sets from this workout?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmIndex(null)} className="flex-1 bg-gray-800 text-white py-3 rounded-xl font-medium hover:bg-gray-700">
+                Cancel
+              </button>
+              <button onClick={() => removeExercise(deleteConfirmIndex)} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium hover:bg-red-600">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showExerciseModal && (
         <ExerciseSearchModal
