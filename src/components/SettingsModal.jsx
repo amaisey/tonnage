@@ -328,15 +328,15 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                       <div className="text-red-400">{diagResult.error}</div>
                     ) : (
                       <>
-                        <div className={diagResult.insert === 'PASS' ? 'text-green-400' : 'text-red-400'}>
-                          INSERT: {diagResult.insert} {diagResult.insert === 'FAIL' && diagResult.details?.insert?.message ? `— ${diagResult.details.insert.message}` : ''}
-                        </div>
-                        <div className={diagResult.select === 'PASS' ? 'text-green-400' : 'text-red-400'}>
-                          SELECT: {diagResult.select} {diagResult.select === 'FAIL' && diagResult.details?.select?.message ? `— ${diagResult.details.select.message}` : ''}
-                        </div>
-                        <div className={diagResult.delete === 'PASS' ? 'text-green-400' : 'text-red-400'}>
-                          DELETE: {diagResult.delete} {diagResult.delete === 'FAIL' && diagResult.details?.delete?.message ? `— ${diagResult.details.delete.message}` : ''}
-                        </div>
+                        <div className="text-gray-400 mb-1">Queue: {diagResult.pendingQueue ?? '?'} pending</div>
+                        {['insert', 'upsert', 'select', 'delete'].map(op => (
+                          <div key={op} className={diagResult[op] === 'PASS' ? 'text-green-400' : diagResult[op] === 'FAIL' ? 'text-red-400' : 'text-gray-500'}>
+                            {op.toUpperCase()}: {diagResult[op] || 'N/A'} {diagResult[op] === 'FAIL' && diagResult.details?.[op]?.message ? `— ${diagResult.details[op].message}` : ''}
+                          </div>
+                        ))}
+                        {diagResult.select === 'PASS' && diagResult.details?.select?.name && (
+                          <div className="text-gray-400 mt-1">Verified: name={diagResult.details.select.name}, duration_ms={diagResult.details.select.duration_ms}</div>
+                        )}
                       </>
                     )}
                   </div>

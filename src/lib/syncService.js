@@ -421,8 +421,22 @@ export async function replaceCloudWorkouts(userId) {
 export async function testCloudAccess(userId) {
   if (!supabase || !userId) return { error: 'No supabase client or userId' }
 
-  const results = { insert: null, select: null, delete: null, details: {} }
+  const results = { insert: null, upsert: null, select: null, delete: null, pendingQueue: null, details: {} }
   const testLocalId = `__diag_test_${Date.now()}`
+
+  // 0. Check pending sync queue
+  try {
+    const queue = await db.syncQueue.toArray()
+    results.pendingQueue = queue.length
+    if (queue.length > 0) {
+      results.details.pendingQueue = queue.slice(0, 3).map(q => ({
+        entity: q.entityType,
+        action: q.action,
+        id: q.entityId,
+        payloadKeys: Object.keys(q.payload || {}).join(',')
+      }))
+    }
+  } catch (_) {}
 
   // 1. Test INSERT
   try {
@@ -453,11 +467,43 @@ export async function testCloudAccess(userId) {
     results.details.insert = { message: err.message }
   }
 
-  // 2. Test SELECT (read the row back)
+  // 2. Test UPSERT (this is what pushToCloud uses)
   try {
     const { data, error } = await supabase
       .from('workouts')
-      .select('id, local_id, name')
+      .upsert({
+        user_id: userId,
+        local_id: testLocalId,
+        name: '__DIAGNOSTIC_UPSERT__',
+        date: Date.now(),
+        start_time: Date.now(),
+        duration_ms: 999,
+        exercises: [],
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,local_id',
+        ignoreDuplicates: false
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      results.upsert = 'FAIL'
+      results.details.upsert = { code: error.code, message: error.message, hint: error.hint }
+    } else {
+      results.upsert = 'PASS'
+      results.details.upsert = { cloudId: data.id }
+    }
+  } catch (err) {
+    results.upsert = 'FAIL'
+    results.details.upsert = { message: err.message }
+  }
+
+  // 3. Test SELECT
+  try {
+    const { data, error } = await supabase
+      .from('workouts')
+      .select('id, local_id, name, duration_ms')
       .eq('user_id', userId)
       .eq('local_id', testLocalId)
       .single()
@@ -467,17 +513,17 @@ export async function testCloudAccess(userId) {
       results.details.select = { code: error.code, message: error.message }
     } else if (data) {
       results.select = 'PASS'
-      results.details.select = { found: true, name: data.name }
+      results.details.select = { name: data.name, duration_ms: data.duration_ms }
     } else {
       results.select = 'FAIL'
-      results.details.select = { found: false, message: 'Row not returned' }
+      results.details.select = { message: 'Row not returned' }
     }
   } catch (err) {
     results.select = 'FAIL'
     results.details.select = { message: err.message }
   }
 
-  // 3. Test DELETE (hard delete)
+  // 4. Test DELETE
   try {
     const { error } = await supabase
       .from('workouts')
@@ -494,19 +540,6 @@ export async function testCloudAccess(userId) {
   } catch (err) {
     results.delete = 'FAIL'
     results.details.delete = { message: err.message }
-  }
-
-  // 4. Verify delete worked
-  try {
-    const { data } = await supabase
-      .from('workouts')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('local_id', testLocalId)
-
-    results.details.cleanedUp = (!data || data.length === 0)
-  } catch (_) {
-    // non-critical
   }
 
   return results
