@@ -415,6 +415,104 @@ export async function replaceCloudWorkouts(userId) {
 }
 
 // ============================================================
+// Diagnostic: test each Supabase operation on workouts table
+// Returns an object with pass/fail for INSERT, SELECT, DELETE
+// ============================================================
+export async function testCloudAccess(userId) {
+  if (!supabase || !userId) return { error: 'No supabase client or userId' }
+
+  const results = { insert: null, select: null, delete: null, details: {} }
+  const testLocalId = `__diag_test_${Date.now()}`
+
+  // 1. Test INSERT
+  try {
+    const { data, error } = await supabase
+      .from('workouts')
+      .insert({
+        user_id: userId,
+        local_id: testLocalId,
+        name: '__DIAGNOSTIC_TEST__',
+        date: new Date().toISOString(),
+        start_time: new Date().toISOString(),
+        duration_ms: 0,
+        exercises: [],
+        updated_at: new Date().toISOString(),
+      })
+      .select('id, local_id')
+      .single()
+
+    if (error) {
+      results.insert = 'FAIL'
+      results.details.insert = { code: error.code, message: error.message, hint: error.hint }
+    } else {
+      results.insert = 'PASS'
+      results.details.insert = { cloudId: data.id }
+    }
+  } catch (err) {
+    results.insert = 'FAIL'
+    results.details.insert = { message: err.message }
+  }
+
+  // 2. Test SELECT (read the row back)
+  try {
+    const { data, error } = await supabase
+      .from('workouts')
+      .select('id, local_id, name')
+      .eq('user_id', userId)
+      .eq('local_id', testLocalId)
+      .single()
+
+    if (error) {
+      results.select = 'FAIL'
+      results.details.select = { code: error.code, message: error.message }
+    } else if (data) {
+      results.select = 'PASS'
+      results.details.select = { found: true, name: data.name }
+    } else {
+      results.select = 'FAIL'
+      results.details.select = { found: false, message: 'Row not returned' }
+    }
+  } catch (err) {
+    results.select = 'FAIL'
+    results.details.select = { message: err.message }
+  }
+
+  // 3. Test DELETE (hard delete)
+  try {
+    const { error } = await supabase
+      .from('workouts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('local_id', testLocalId)
+
+    if (error) {
+      results.delete = 'FAIL'
+      results.details.delete = { code: error.code, message: error.message }
+    } else {
+      results.delete = 'PASS'
+    }
+  } catch (err) {
+    results.delete = 'FAIL'
+    results.details.delete = { message: err.message }
+  }
+
+  // 4. Verify delete worked
+  try {
+    const { data } = await supabase
+      .from('workouts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('local_id', testLocalId)
+
+    results.details.cleanedUp = (!data || data.length === 0)
+  } catch (_) {
+    // non-critical
+  }
+
+  return results
+}
+
+// ============================================================
 // Queue a sync entry for later push
 // ============================================================
 export async function queueSyncEntry(entityType, entityId, action, payload) {

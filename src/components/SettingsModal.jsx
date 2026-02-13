@@ -5,7 +5,7 @@ import { defaultExercises } from '../data/defaultExercises';
 import AuthModal from './AuthModal';
 import SyncStatus from './SyncStatus';
 import { useAuth } from '../hooks/useAuth';
-import { queueSyncEntry, replaceCloudWorkouts } from '../lib/syncService';
+import { queueSyncEntry, replaceCloudWorkouts, testCloudAccess } from '../lib/syncService';
 
 export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, user, syncStatus, lastSynced, pendingCount, onSyncNow, onHistoryRefresh }) {
   const [exporting, setExporting] = useState(false);
@@ -18,6 +18,8 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [diagResult, setDiagResult] = useState(null);
+  const [diagRunning, setDiagRunning] = useState(false);
   const { signOut } = useAuth();
 
   // Sign out and close modal for clear visual feedback
@@ -303,6 +305,42 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                     Sign Out
                   </button>
                 </div>
+                <button
+                  onClick={async () => {
+                    setDiagRunning(true);
+                    setDiagResult(null);
+                    try {
+                      const r = await testCloudAccess(user.id);
+                      setDiagResult(r);
+                    } catch (err) {
+                      setDiagResult({ error: err.message });
+                    }
+                    setDiagRunning(false);
+                  }}
+                  disabled={diagRunning}
+                  className="w-full mt-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 py-2 px-4 rounded-xl text-xs font-medium transition-colors"
+                >
+                  {diagRunning ? 'Testing...' : 'Test Cloud Access'}
+                </button>
+                {diagResult && (
+                  <div className="mt-2 bg-black/30 rounded-lg p-3 text-xs font-mono space-y-1">
+                    {diagResult.error ? (
+                      <div className="text-red-400">{diagResult.error}</div>
+                    ) : (
+                      <>
+                        <div className={diagResult.insert === 'PASS' ? 'text-green-400' : 'text-red-400'}>
+                          INSERT: {diagResult.insert} {diagResult.insert === 'FAIL' && diagResult.details?.insert?.message ? `— ${diagResult.details.insert.message}` : ''}
+                        </div>
+                        <div className={diagResult.select === 'PASS' ? 'text-green-400' : 'text-red-400'}>
+                          SELECT: {diagResult.select} {diagResult.select === 'FAIL' && diagResult.details?.select?.message ? `— ${diagResult.details.select.message}` : ''}
+                        </div>
+                        <div className={diagResult.delete === 'PASS' ? 'text-green-400' : 'text-red-400'}>
+                          DELETE: {diagResult.delete} {diagResult.delete === 'FAIL' && diagResult.details?.delete?.message ? `— ${diagResult.details.delete.message}` : ''}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <button onClick={() => setShowAuth(true)} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 px-4 rounded-xl font-medium transition-colors">
