@@ -147,10 +147,13 @@ function App() {
         // Template is the source of truth for set count, values, and rest times.
         // Previous data is only used for the PREV column display.
         const sets = ex.sets.map(s => ({ ...s, completed: false, proposed: true, manuallyEdited: false }));
+        // Look up exercise library entry for its instructions (read-only how-to)
+        const libraryEx = exercises.find(e => e.name === ex.name);
         return {
           ...ex,
           restTime: ex.restTime ?? 60,
-          notes: ex.notes || '',
+          instructions: libraryEx?.instructions || '', // Exercise how-to from library (read-only)
+          notes: ex.notes || '', // Template notes copied into workout as editable notes
           sets,
           previousSets: prevData?.sets
         };

@@ -77,15 +77,38 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Initialize audio context on first user interaction
+  // iOS requires playing a silent buffer via user gesture to unlock audio
   const initAudio = () => {
     if (audioInitialized.current) return;
     try {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = ctx;
+      // Play a silent buffer to unlock iOS audio
+      const silentBuffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = silentBuffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      // Resume if suspended (iOS)
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
       audioInitialized.current = true;
     } catch (e) {
       console.log('Audio init failed:', e);
     }
   };
+
+  // Unlock audio on first touch anywhere in the workout screen
+  useEffect(() => {
+    const unlock = () => { initAudio(); };
+    document.addEventListener('touchstart', unlock, { once: true });
+    document.addEventListener('click', unlock, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('click', unlock);
+    };
+  }, []);
 
   const playBeep = async (frequency = 880, duration = 0.15, volume = 0.3) => {
     initAudio();
@@ -136,9 +159,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   useEffect(() => {
     if (activeWorkout?.exercises?.length > 0 && !lastCompletionTimestamp && !expectedNext) {
       setLastCompletionTimestamp(activeWorkout.startTime);
+      // Find first incomplete set in phase display order (warmup → workout → cooldown)
+      const ex = activeWorkout.exercises;
+      const phases = { warmup: [], workout: [], cooldown: [] };
+      ex.forEach((e, idx) => { phases[e.phase || 'workout'].push(idx); });
+      const ordered = [...phases.warmup, ...phases.workout, ...phases.cooldown];
+
       let firstIncomplete = null;
-      for (let i = 0; i < activeWorkout.exercises.length; i++) {
-        const setIdx = activeWorkout.exercises[i].sets.findIndex(s => !s.completed);
+      for (const i of ordered) {
+        const setIdx = ex[i].sets.findIndex(s => !s.completed);
         if (setIdx >= 0) {
           firstIncomplete = { exIndex: i, setIndex: setIdx };
           break;
@@ -150,7 +179,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   // Validate expectedNext on every workout change.
   // If expectedNext points to a stale/completed/missing set, recalculate it.
-  // This catches edge cases from removeExercise, removeSet, addExercises, addSet, etc.
+  // This catches edge cases from removeExercise, removeSet, addExercises, addSet, phase changes, etc.
   useEffect(() => {
     if (!activeWorkout?.exercises) return;
     const ex = activeWorkout.exercises;
@@ -163,9 +192,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
     if (isValid) return; // Current pointer is fine
 
-    // Find first incomplete set across all exercises
+    // Find first incomplete set in phase display order (warmup → workout → cooldown)
+    const phases = { warmup: [], workout: [], cooldown: [] };
+    ex.forEach((e, idx) => { phases[e.phase || 'workout'].push(idx); });
+    const ordered = [...phases.warmup, ...phases.workout, ...phases.cooldown];
+
     let firstIncomplete = null;
-    for (let i = 0; i < ex.length; i++) {
+    for (const i of ordered) {
       const setIdx = ex[i].sets.findIndex(s => !s.completed);
       if (setIdx >= 0) {
         firstIncomplete = { exIndex: i, setIndex: setIdx };
@@ -185,12 +218,20 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Auto-scroll to next set when green bar triggers a completion
+  // Position the exercise card about 30% from top of viewport (20% above center)
   useEffect(() => {
     if (scrollToNextRef.current && expectedNext) {
       scrollToNextRef.current = false;
       setTimeout(() => {
         const el = dragRefs.current[expectedNext.exIndex];
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const container = scrollContainerRef.current;
+        if (el && container) {
+          const elRect = el.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const targetOffset = containerRect.height * 0.30; // 30% from top
+          const scrollDelta = elRect.top - containerRect.top - targetOffset;
+          container.scrollBy({ top: scrollDelta, behavior: 'smooth' });
+        }
       }, 50);
     }
   }, [expectedNext]);
@@ -328,7 +369,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
 
-  // Calculate the next expected set (superset-aware)
+  // Returns exercise indices in visual display order (warmup → workout → cooldown).
+  // Within each phase, exercises stay in their original array order.
+  const getPhaseOrderedIndices = () => {
+    const phases = { warmup: [], workout: [], cooldown: [] };
+    activeWorkout.exercises.forEach((ex, idx) => {
+      const phase = ex.phase || 'workout';
+      phases[phase].push(idx);
+    });
+    return [...phases.warmup, ...phases.workout, ...phases.cooldown];
+  };
+
+  // Calculate the next expected set (superset-aware, phase-order-aware)
   // For supersets: pick the incomplete set with the lowest set number,
   // breaking ties by earliest exercise position in the superset.
   const calculateNextExpected = (justCompletedExIndex, justCompletedSetIndex) => {
@@ -365,8 +417,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       return { exIndex: justCompletedExIndex, setIndex: nextSetInSameEx };
     }
 
-    // All sets done for this exercise - find next exercise with incomplete sets
-    for (let i = justCompletedExIndex + 1; i < exercises.length; i++) {
+    // All sets done for this exercise - find next in phase display order
+    const orderedIndices = getPhaseOrderedIndices();
+    const currentPos = orderedIndices.indexOf(justCompletedExIndex);
+    for (let pos = currentPos + 1; pos < orderedIndices.length; pos++) {
+      const i = orderedIndices[pos];
       const nextSetIdx = exercises[i].sets.findIndex(s => !s.completed);
       if (nextSetIdx >= 0) {
         return { exIndex: i, setIndex: nextSetIdx };
@@ -458,11 +513,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       return 0;
     }
 
-    // Last exercise in superset, set > 0: rest came from this exercise completing the previous round
-    // e.g. superset [A, B]: above B2, the rest target is B's rest time from round 1
+    // Last exercise in superset, set > 0:
+    // The rest before this set came from the previous exercise in the superset (same round transition)
+    // e.g. superset [A, B]: flow is A1→B1→(rest)→A2→B2→(rest)→A3→B3
+    // Above B2, the rest came from A2→B2 transition (within-round, so A's restTime)
+    // NOT the round-transition rest (B1→rest→A2 uses B's restTime)
     if (exercise.supersetId && setIndex > 0) {
+      const supersetExercises = activeWorkout.exercises.filter(
+        ex => ex.supersetId === exercise.supersetId
+      );
+      const posInSuperset = supersetExercises.indexOf(exercise);
+      if (posInSuperset > 0) {
+        // Previous exercise in superset completed this round → use its restTime (usually 0)
+        const prevInSuperset = supersetExercises[posInSuperset - 1];
+        return getLockedOrLive(prevInSuperset, setIndex);
+      }
+      // First exercise in superset at set > 0: rest came from round transition
+      // (last superset exercise completed previous round)
+      const lastEx = supersetExercises[supersetExercises.length - 1];
       const prevRoundSetIdx = setIndex - 1;
-      return getLockedOrLive(exercise, prevRoundSetIdx);
+      return getLockedOrLive(lastEx, prevRoundSetIdx);
     }
 
     // For set 1+ of any non-superset exercise: use the previous set's locked-in value if completed
@@ -511,9 +581,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           ...ex,
           supersetId,
           phase: targetPhase,
-          // Non-last superset exercises: zero rest time (user can manually add back)
           restTime: isLast ? (prevData?.restTime || 60) : 0,
-          notes: prevData?.notes || '',
+          instructions: ex.instructions || '', // Exercise how-to from library (read-only)
+          notes: prevData?.notes || '', // Editable notes from last workout
           sets,
           previousSets: prevData?.sets
         });
@@ -528,7 +598,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           ...ex,
           phase: targetPhase,
           restTime: prevData?.restTime || 60,
-          notes: prevData?.notes || '',
+          instructions: ex.instructions || '', // Exercise how-to from library (read-only)
+          notes: prevData?.notes || '', // Editable notes from last workout
           sets,
           previousSets: prevData?.sets
         });
@@ -540,12 +611,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     // The green bar disappears when all sets are complete (expectedNext = null).
     // Adding new exercises should bring it back. Also handle the case where
     // expectedNext exists but points to an already-completed set (stale).
+    // Uses phase order (warmup → workout → cooldown) to match visual display.
     const needsRecalc = !expectedNext ||
       !updated.exercises[expectedNext.exIndex] ||
       updated.exercises[expectedNext.exIndex].sets[expectedNext.setIndex]?.completed;
 
     if (needsRecalc) {
-      for (let i = 0; i < updated.exercises.length; i++) {
+      const phases = { warmup: [], workout: [], cooldown: [] };
+      updated.exercises.forEach((e, idx) => { phases[e.phase || 'workout'].push(idx); });
+      const ordered = [...phases.warmup, ...phases.workout, ...phases.cooldown];
+      for (const i of ordered) {
         const setIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
         if (setIdx >= 0) {
           setExpectedNext({ exIndex: i, setIndex: setIdx });
@@ -957,7 +1032,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const [movedExercise] = updated.exercises.splice(fromIndex, 1);
       updated.exercises.splice(toIndex, 0, movedExercise);
       setActiveWorkout(updated);
-      remapExpectedNext(fromIndex, toIndex);
+      remapExpectedNext();
 
       // Auto-scroll to moved exercise after render
       setTimeout(() => {
@@ -990,17 +1065,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setDragState(null);
   };
 
-  // Helper: remap expectedNext index after a splice-move operation
-  const remapExpectedNext = (fromIndex, adjustedTarget) => {
-    if (!expectedNext) return;
-    let newIdx = expectedNext.exIndex;
-    if (newIdx === fromIndex) {
-      newIdx = adjustedTarget;
-    } else {
-      if (newIdx > fromIndex) newIdx--;
-      if (newIdx >= adjustedTarget) newIdx++;
-    }
-    setExpectedNext({ ...expectedNext, exIndex: newIdx });
+  // Helper: after a reorder, force expectedNext recalculation via the useEffect validator.
+  // Temporarily set to null so the validator finds the first incomplete in phase order.
+  const remapExpectedNext = () => {
+    setExpectedNext(null); // Validator useEffect will recalculate in phase order
   };
 
   const dropExercise = (targetIndex, targetPhase) => {
@@ -1014,7 +1082,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
     setDragState(null);
-    remapExpectedNext(fromIndex, adjustedTarget);
+    remapExpectedNext();
 
     // Auto-scroll to the moved exercise's new position
     setTimeout(() => {
@@ -1031,7 +1099,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
-    remapExpectedNext(fromIndex, adjustedTarget);
+    remapExpectedNext();
   };
 
   const openBandPicker = (exIndex, setIndex, currentColor) => {
@@ -1391,12 +1459,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             )}
             {/* Delete button with confirmation */}
             {deleteConfirmIndex === exIndex ? (
-              <div className="flex items-center gap-1">
-                <button onClick={() => removeExercise(exIndex)} className="text-xs bg-red-500 text-white px-2 py-1 rounded">Delete</button>
-                <button onClick={() => setDeleteConfirmIndex(null)} className="text-xs text-gray-400 px-1">Cancel</button>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => removeExercise(exIndex)} className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded whitespace-nowrap">Del</button>
+                <button onClick={() => setDeleteConfirmIndex(null)} className="text-[10px] text-gray-400 px-1 whitespace-nowrap">✕</button>
               </div>
             ) : (
-              <button onClick={() => setDeleteConfirmIndex(exIndex)} className="text-red-400 hover:text-red-300 p-1"><Icons.X /></button>
+              <button onClick={() => setDeleteConfirmIndex(exIndex)} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"><Icons.X /></button>
             )}
           </div>
         </div>
@@ -1446,14 +1514,21 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
-        {/* Exercise notes — tappable to edit */}
+        {/* Instructions (from template/exercise library — read-only, compact) */}
+        {exercise.instructions && (
+          <div className="mb-0.5 px-1 py-0.5">
+            <p className="text-[10px] text-gray-500 italic truncate">📋 {exercise.instructions}</p>
+          </div>
+        )}
+
+        {/* Workout-specific notes — tappable to edit */}
         {editingExNotes?.exIndex === exIndex ? (
-          <div className="mb-2 px-1">
+          <div className="mb-1 px-1">
             <textarea
               value={editingExNotes.text}
               onChange={(e) => setEditingExNotes({ ...editingExNotes, text: e.target.value })}
-              placeholder="Exercise notes..."
-              className="w-full bg-amber-900/20 text-amber-300 text-xs rounded-lg p-2 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
+              placeholder="Workout notes for this exercise..."
+              className="w-full bg-amber-900/20 text-amber-300 text-xs rounded-lg p-2 min-h-[50px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
               autoFocus
             />
             <div className="flex gap-2 mt-1">
@@ -1469,18 +1544,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         ) : exercise.notes ? (
           <button onClick={() => setEditingExNotes({ exIndex, text: exercise.notes })}
-            className="mb-2 px-1 py-1.5 bg-amber-900/15 border border-amber-700/20 rounded-lg w-full text-left hover:bg-amber-900/25">
-            <p className="text-xs text-amber-400/80 leading-relaxed">{exercise.notes}</p>
+            className="mb-0.5 px-1 py-0.5 bg-amber-900/10 rounded w-full text-left hover:bg-amber-900/20">
+            <p className="text-xs text-amber-400/70 truncate">{exercise.notes}</p>
           </button>
         ) : (
           <button onClick={() => setEditingExNotes({ exIndex, text: '' })}
-            className="mb-1 px-1 py-1 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
-            + Add notes
+            className="mb-0.5 px-1 py-0.5 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
+            + notes
           </button>
         )}
 
         {/* Set headers */}
-        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
+        <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-0 text-[10px] text-gray-500 uppercase px-1">
           <span>Set</span>
           <span className="text-center">Prev</span>
           {CATEGORIES[exercise.category]?.fields.length < 2 && <span></span>}
@@ -1507,7 +1582,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-1 py-1 bg-transparent hover:bg-white/5 rounded-lg text-teal-400/70 flex items-center justify-center gap-1 text-xs">
+          className="w-full mt-0.5 py-0.5 bg-transparent hover:bg-white/5 rounded text-teal-400/60 flex items-center justify-center gap-1 text-[10px]">
           <Icons.Plus /> Add Set
         </button>
       </div>
@@ -1598,8 +1673,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
-            <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full" />
+            <div className="overflow-x-auto scrollbar-hide">
+              <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
+                className="text-xl font-bold text-white bg-transparent border-none focus:outline-none whitespace-nowrap"
+                style={{ minWidth: `${Math.max(activeWorkout.name.length * 0.65, 6)}em` }} />
+            </div>
             {/* Bug #15: Pace tracking display */}
             {(() => {
               const pace = getPaceInfo();
@@ -1742,7 +1820,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       </div>
 
       {/* Complete Next Set — green bar on right side */}
-      {expectedNext && !numpadState && !dragState && !dragTouch && (
+      {expectedNext && !dragState && !dragTouch && (
         <button
           onClick={() => {
             setCompletionFlash(true);
@@ -1767,8 +1845,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-2.5 bg-green-500/70 hover:w-4 hover:bg-green-500'}`}
           style={{
-            top: '33%',
-            height: '34%',
+            bottom: numpadState ? '17rem' : '33%',
+            height: numpadState ? '20%' : '34%',
+            top: numpadState ? 'auto' : '33%',
             borderRadius: '8px 0 0 8px',
           }}
         >
