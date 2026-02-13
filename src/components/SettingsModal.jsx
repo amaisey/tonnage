@@ -111,6 +111,25 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
         });
       }
 
+      // Queue imported workouts for cloud sync (so backup replaces cloud data too)
+      if (user && workouts.length > 0) {
+        const allWorkouts = await workoutDb.getAll();
+        for (const w of allWorkouts) {
+          if (!w.cloudId) {
+            await db.syncQueue.add({
+              entityType: 'workout',
+              entityId: w.id,
+              action: 'create',
+              payload: w,
+              createdAt: Date.now()
+            });
+          }
+        }
+        onSyncNow?.();
+      }
+
+      onHistoryRefresh?.();
+
       setMessage({
         type: 'success',
         text: `Restored ${workouts.length} workouts, ${importedTemplates.length} templates, ${importedExercises.length} exercises`
