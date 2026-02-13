@@ -20,6 +20,12 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { signOut } = useAuth();
 
+  // Sign out and close modal for clear visual feedback
+  const handleSignOut = () => {
+    signOut();  // Don't await — user state clears synchronously first
+    onClose();
+  };
+
   // Get workout count on mount and when sync status changes (e.g. after pull adds data)
   useEffect(() => {
     workoutDb.count().then(setWorkoutCount);
@@ -284,7 +290,7 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                   <button onClick={onSyncNow} className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-colors">
                     Sync Now
                   </button>
-                  <button onClick={signOut} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-colors">
+                  <button onClick={handleSignOut} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-colors">
                     Sign Out
                   </button>
                 </div>
