@@ -411,8 +411,24 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const calculateNextExpected = (justCompletedExIndex, justCompletedSetIndex) => {
     const exercises = activeWorkout.exercises;
     const justCompleted = exercises[justCompletedExIndex];
+    const orderedIndices = getPhaseOrderedIndices();
+
+    // Helper: find the global first incomplete set in phase order
+    const findGlobalFirst = () => {
+      for (const i of orderedIndices) {
+        const setIdx = exercises[i].sets.findIndex(s => !s.completed);
+        if (setIdx >= 0) return { exIndex: i, setIndex: setIdx };
+      }
+      return null;
+    };
+
+    // Helper: get phase-order position for comparison
+    const phasePos = (exIdx) => orderedIndices.indexOf(exIdx);
+
+    let candidate = null;
 
     if (justCompleted.supersetId) {
+      // Superset round-robin: find next incomplete in this superset
       const supersetExercises = exercises
         .map((ex, idx) => ({ ex, idx }))
         .filter(({ ex }) => ex.supersetId === justCompleted.supersetId);
@@ -433,27 +449,47 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         });
       });
 
-      if (bestCandidate) return bestCandidate;
+      candidate = bestCandidate;
     }
 
-    // Not in superset, or superset fully complete: next incomplete set of same exercise
-    const nextSetInSameEx = justCompleted.sets.findIndex((s, idx) => idx > justCompletedSetIndex && !s.completed);
-    if (nextSetInSameEx >= 0) {
-      return { exIndex: justCompletedExIndex, setIndex: nextSetInSameEx };
-    }
-
-    // All sets done for this exercise - find next in phase display order
-    const orderedIndices = getPhaseOrderedIndices();
-    const currentPos = orderedIndices.indexOf(justCompletedExIndex);
-    for (let pos = currentPos + 1; pos < orderedIndices.length; pos++) {
-      const i = orderedIndices[pos];
-      const nextSetIdx = exercises[i].sets.findIndex(s => !s.completed);
-      if (nextSetIdx >= 0) {
-        return { exIndex: i, setIndex: nextSetIdx };
+    if (!candidate) {
+      // Not in superset, or superset fully complete: next incomplete set of same exercise
+      const nextSetInSameEx = justCompleted.sets.findIndex((s, idx) => idx > justCompletedSetIndex && !s.completed);
+      if (nextSetInSameEx >= 0) {
+        candidate = { exIndex: justCompletedExIndex, setIndex: nextSetInSameEx };
       }
     }
 
-    return null; // All done
+    if (!candidate) {
+      // All sets done for this exercise — find next in phase order after this exercise
+      const currentPos = phasePos(justCompletedExIndex);
+      for (let pos = currentPos + 1; pos < orderedIndices.length; pos++) {
+        const i = orderedIndices[pos];
+        const nextSetIdx = exercises[i].sets.findIndex(s => !s.completed);
+        if (nextSetIdx >= 0) {
+          candidate = { exIndex: i, setIndex: nextSetIdx };
+          break;
+        }
+      }
+    }
+
+    // Guard: if the candidate is LATER in phase order than the global first incomplete,
+    // use the global first instead. This prevents skipping ahead when user manually
+    // completes a set in a later exercise while earlier exercises are still incomplete.
+    const globalFirst = findGlobalFirst();
+    if (candidate && globalFirst) {
+      const candidatePos = phasePos(candidate.exIndex);
+      const globalPos = phasePos(globalFirst.exIndex);
+      if (globalPos < candidatePos) {
+        return globalFirst;
+      }
+      // Same exercise but earlier set in global
+      if (globalPos === candidatePos && globalFirst.setIndex < candidate.setIndex) {
+        return globalFirst;
+      }
+    }
+
+    return candidate || globalFirst;
   };
 
   // Determine if rest timer should fire
@@ -1755,7 +1791,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto px-4 pb-4 pt-2 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-1' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto px-4 pb-4 pt-2 ${restTimer.active && !restTimerMinimized ? 'pt-14' : ''} ${dragState ? 'pt-1' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'
