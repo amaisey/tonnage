@@ -9,7 +9,7 @@ export const defaultExercises = [
   { id: 15, name: 'Seated Cable Row', bodyPart: 'Back', category: 'machine', instructions: 'Chest to pad, pull to chest, squeeze shoulder blades together' },
   { id: 16, name: 'Dumbbell Row', bodyPart: 'Back', category: 'dumbbell', instructions: 'Single arm, flat back, pull to hip, squeeze at top' },
   { id: 18, name: 'Assisted Pull Ups', bodyPart: 'Back', category: 'assisted_bodyweight', instructions: 'Shoulders down, pull chin over bar, control descent' },
-  { id: 22, name: 'Leg Press', bodyPart: 'Legs', category: 'machine', instructions: 'Feet shoulder-width, lower controlled, don\\'t lock knees fully' },
+  { id: 22, name: 'Leg Press', bodyPart: 'Legs', category: 'machine', instructions: 'Feet shoulder-width, lower controlled, don\'t lock knees fully' },
   { id: 27, name: 'Bulgarian Split Squat', bodyPart: 'Legs', category: 'dumbbell', instructions: 'Back foot elevated, front knee over ankle, drive through front leg' },
   { id: 28, name: 'Lunges', bodyPart: 'Legs', category: 'dumbbell', instructions: 'Step forward, front knee 90°, back knee nearly down, drive back' },
   { id: 31, name: 'Dumbbell Shoulder Press', bodyPart: 'Shoulders', category: 'dumbbell', instructions: 'Dumbbells at shoulder height, press overhead, lockout with control' },
