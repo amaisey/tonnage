@@ -1,19 +1,8 @@
 import { supabase } from './supabase'
 import { db } from '../db/workoutDb'
 
-// Timeout for individual Supabase requests
-const REQUEST_TIMEOUT_MS = 15000
-// Timeout for fetchAll (may span multiple pages)
-const FETCH_ALL_TIMEOUT_MS = 30000
-
-// ============================================================
-// Helper: create an AbortController that auto-aborts after ms
-// ============================================================
-function timedAbort(ms) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), ms)
-  return { signal: controller.signal, clear: () => clearTimeout(timeoutId) }
-}
+// Timeout for each fetchAll operation (covers all pages for one table)
+const FETCH_TIMEOUT_MS = 30000
 
 // ============================================================
 // Push local changes to Supabase
@@ -28,8 +17,6 @@ export async function pushToCloud(userId) {
   const errors = []
 
   for (const item of queue) {
-    const { signal, clear } = timedAbort(REQUEST_TIMEOUT_MS)
-
     try {
       const table = item.entityType + 's' // 'workout' → 'workouts'
 
@@ -47,7 +34,6 @@ export async function pushToCloud(userId) {
           })
           .select('id')
           .single()
-          .abortSignal(signal)
 
         if (error) throw error
 
@@ -63,7 +49,6 @@ export async function pushToCloud(userId) {
           .update({ ...item.payload, updated_at: new Date().toISOString() })
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
-          .abortSignal(signal)
 
         if (error) throw error
       }
@@ -74,7 +59,6 @@ export async function pushToCloud(userId) {
           .update({ deleted_at: new Date().toISOString() })
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
-          .abortSignal(signal)
 
         if (error) throw error
       }
@@ -83,14 +67,8 @@ export async function pushToCloud(userId) {
       await db.syncQueue.delete(item.id)
       pushed++
     } catch (err) {
-      if (err.name === 'AbortError') {
-        console.warn(`Push timed out for ${item.entityType}/${item.entityId}`)
-      } else {
-        console.error('Sync push error for item:', item, err)
-      }
+      console.error('Sync push error for item:', item, err)
       errors.push({ item, error: err })
-    } finally {
-      clear()
     }
   }
 
@@ -106,13 +84,14 @@ export async function pullFromCloud(userId, lastSyncedAt) {
   const since = lastSyncedAt || '1970-01-01T00:00:00Z'
 
   // Paginated fetch helper — Supabase caps at 1000 rows per query.
-  // Uses AbortController to timeout after FETCH_ALL_TIMEOUT_MS so requests
+  // Uses AbortController to timeout after FETCH_TIMEOUT_MS so requests
   // don't hang forever (observed in Brave with SW registered).
   async function fetchAll(table, filters = {}) {
     const PAGE_SIZE = 1000
     let allData = []
     let from = 0
-    const { signal, clear } = timedAbort(FETCH_ALL_TIMEOUT_MS)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
     try {
       while (true) {
@@ -121,7 +100,7 @@ export async function pullFromCloud(userId, lastSyncedAt) {
           .gt('updated_at', since)
           .is('deleted_at', null)
           .range(from, from + PAGE_SIZE - 1)
-          .abortSignal(signal)
+          .abortSignal(controller.signal)
 
         if (filters.order) {
           query = query.order(filters.order.column, { ascending: filters.order.ascending })
@@ -138,7 +117,7 @@ export async function pullFromCloud(userId, lastSyncedAt) {
 
       return allData
     } finally {
-      clear()
+      clearTimeout(timeoutId)
     }
   }
 
@@ -195,15 +174,9 @@ export async function pullFromCloud(userId, lastSyncedAt) {
 
   // Update last synced timestamp on server (best-effort, don't block on failure)
   try {
-    const { signal, clear } = timedAbort(REQUEST_TIMEOUT_MS)
-    try {
-      await supabase.from('user_profiles')
-        .update({ last_synced_at: new Date().toISOString() })
-        .eq('id', userId)
-        .abortSignal(signal)
-    } finally {
-      clear()
-    }
+    await supabase.from('user_profiles')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', userId)
   } catch (profileErr) {
     console.warn('user_profiles update failed (non-fatal):', profileErr)
   }
@@ -315,6 +288,78 @@ export async function mergeOnFirstLogin(userId) {
   try {
     await supabase.from('user_profiles')
       .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', userId)
+  } catch (err) {
+    console.warn('user_profiles update failed (non-fatal):', err)
+  }
+}
+
+// ============================================================
+// Replace ALL cloud workouts for a user (used by Import Backup)
+// 1. Soft-delete existing cloud workouts
+// 2. Batch upsert imported workouts (un-deletes matched rows)
+// 3. Orphaned cloud rows stay soft-deleted
+// ============================================================
+export async function replaceCloudWorkouts(userId) {
+  if (!supabase || !userId) return
+
+  // Soft-delete all existing cloud workouts for this user
+  const { error: deleteError } = await supabase
+    .from('workouts')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+
+  if (deleteError) {
+    console.error('Cloud workout soft-delete error:', deleteError)
+    throw deleteError
+  }
+
+  // Batch upsert all local workouts
+  const allWorkouts = await db.workouts.toArray()
+  if (allWorkouts.length === 0) return
+
+  const BATCH_SIZE = 100
+  const replaceTimestamp = new Date().toISOString()
+
+  for (let i = 0; i < allWorkouts.length; i += BATCH_SIZE) {
+    const batch = allWorkouts.slice(i, i + BATCH_SIZE).map(w => ({
+      user_id: userId,
+      local_id: String(w.id),
+      name: w.name,
+      notes: w.notes || null,
+      start_time: w.startTime || w.date,
+      date: w.date,
+      duration_ms: w.duration || 0,
+      exercises: w.exercises || [],
+      updated_at: replaceTimestamp,
+      deleted_at: null // Explicitly un-delete if row matched
+    }))
+
+    const { data, error } = await supabase
+      .from('workouts')
+      .upsert(batch, { onConflict: 'user_id,local_id', ignoreDuplicates: false })
+      .select('id, local_id')
+
+    if (error) {
+      console.error('Batch replace error:', error)
+    } else if (data) {
+      // Store cloud IDs back on local records
+      for (const row of data) {
+        if (row.local_id) {
+          const localIdNum = Number(row.local_id)
+          if (!isNaN(localIdNum)) {
+            await db.workouts.update(localIdNum, { cloudId: row.id })
+          }
+        }
+      }
+    }
+  }
+
+  // Update sync timestamp
+  try {
+    await supabase.from('user_profiles')
+      .update({ last_synced_at: replaceTimestamp })
       .eq('id', userId)
   } catch (err) {
     console.warn('user_profiles update failed (non-fatal):', err)

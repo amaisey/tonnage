@@ -5,7 +5,7 @@ import { defaultExercises } from '../data/defaultExercises';
 import AuthModal from './AuthModal';
 import SyncStatus from './SyncStatus';
 import { useAuth } from '../hooks/useAuth';
-import { queueSyncEntry } from '../lib/syncService';
+import { queueSyncEntry, replaceCloudWorkouts } from '../lib/syncService';
 
 export function SettingsModal({ onClose, exercises, templates, folders, onRestoreData, user, syncStatus, lastSynced, pendingCount, onSyncNow, onHistoryRefresh }) {
   const [exporting, setExporting] = useState(false);
@@ -111,21 +111,11 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
         });
       }
 
-      // Queue imported workouts for cloud sync (so backup replaces cloud data too)
+      // Replace cloud data too — soft-deletes old cloud rows, batch upserts imported ones
       if (user && workouts.length > 0) {
-        const allWorkouts = await workoutDb.getAll();
-        for (const w of allWorkouts) {
-          if (!w.cloudId) {
-            await db.syncQueue.add({
-              entityType: 'workout',
-              entityId: w.id,
-              action: 'create',
-              payload: w,
-              createdAt: Date.now()
-            });
-          }
-        }
-        onSyncNow?.();
+        await db.syncQueue.clear(); // Remove stale sync entries from old data
+        await replaceCloudWorkouts(user.id);
+        localStorage.setItem('tonnage-local-last-synced', new Date().toISOString());
       }
 
       onHistoryRefresh?.();

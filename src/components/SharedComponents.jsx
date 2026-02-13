@@ -6,14 +6,18 @@ import { formatDuration, generateStravaDescription, getDefaultSetForCategory } f
 const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEChange, fieldLabel }) => {
   const [showRPEPicker, setShowRPEPicker] = useState(false);
   const [hasEdited, setHasEdited] = useState(false);
+  const hasEditedRef = useRef(false); // Ref mirrors state for rapid-tap accuracy
   const [localValue, setLocalValue] = useState(value);
   const valueRef = useRef(value);
+  const dragStartY = useRef(null);
+  const [dragOffset, setDragOffset] = useState(0);
 
   // Sync local value with prop when FIELD changes (not value - that causes overwrite bug)
   useEffect(() => {
     setLocalValue(value);
     valueRef.current = value;
     setHasEdited(false);
+    hasEditedRef.current = false;
   }, [fieldLabel]); // Only reset when switching fields, not on every value change
 
   // Update parent and local state together
@@ -24,10 +28,11 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
   };
 
   const handleDigit = (digit) => {
-    if (!hasEdited) {
+    if (!hasEditedRef.current) {
       // First keystroke - overwrite the existing value
-      updateValue(digit);
+      hasEditedRef.current = true;
       setHasEdited(true);
+      updateValue(digit);
     } else {
       // Subsequent keystrokes - append using ref for latest value
       updateValue(valueRef.current + digit);
@@ -48,10 +53,41 @@ const NumberPad = ({ value, onChange, onClose, onNext, showRPE, rpeValue, onRPEC
     updateValue(String(newVal));
   };
 
+  // Drag-down to dismiss
+  const handleDragStart = (e) => {
+    dragStartY.current = e.touches[0].clientY;
+    setDragOffset(0);
+  };
+  const handleDragMove = (e) => {
+    if (dragStartY.current === null) return;
+    const dy = e.touches[0].clientY - dragStartY.current;
+    if (dy > 0) {
+      setDragOffset(dy);
+      e.preventDefault();
+    }
+  };
+  const handleDragEnd = () => {
+    if (dragOffset > 80) {
+      onClose();
+    }
+    setDragOffset(0);
+    dragStartY.current = null;
+  };
+
   const rpeOptions = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
   return (
-    <div className="fixed inset-x-0 bottom-0 bg-gray-900 border-t border-gray-800 z-50 rounded-t-2xl">
+    <div
+      className="fixed inset-x-0 bottom-0 bg-gray-900 border-t border-gray-800 z-50 rounded-t-2xl transition-transform"
+      style={{ transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
+      onTouchStart={handleDragStart}
+      onTouchMove={handleDragMove}
+      onTouchEnd={handleDragEnd}
+    >
+      {/* Drag handle indicator */}
+      <div className="flex justify-center pt-2 pb-1">
+        <div className="w-10 h-1 bg-gray-600 rounded-full" />
+      </div>
       {showRPEPicker ? (
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
@@ -328,7 +364,7 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
     }
 
     const updateElapsed = () => {
-      const elapsed = Math.round((Date.now() - lastCompletionTimestamp) / 1000);
+      const elapsed = Math.floor((Date.now() - lastCompletionTimestamp) / 1000);
       setElapsedTime(elapsed);
     };
 

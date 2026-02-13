@@ -47,4 +47,34 @@ html, body {
 button {
   -webkit-user-select: none;
   user-select: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+
+/* Reset select elements for iOS too */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Line clamp utility (fallback for older Tailwind) */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Update toast animation */
+@keyframes slide-down {
+  from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
 }

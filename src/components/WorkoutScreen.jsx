@@ -28,6 +28,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [restTimerMinimized, setRestTimerMinimized] = useState(false); // Bug #6: minimize rest timer banner
   // Bug #9: Touch drag-to-reorder state
   const [dragTouch, setDragTouch] = useState(null); // { exIndex, startY, currentY, insertBefore }
+  const [completionFlash, setCompletionFlash] = useState(false); // Green bar expand animation
+  const [notesExpanded, setNotesExpanded] = useState(false); // Collapsible workout notes
   const longPressTimerRef = useRef(null);
   const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
@@ -49,12 +51,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
   };
 
-  const playBeep = (frequency = 880, duration = 0.15, volume = 0.3) => {
+  const playBeep = async (frequency = 880, duration = 0.15, volume = 0.3) => {
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
     try {
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -70,12 +72,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
   };
 
-  const playRestTimerAlarm = () => {
+  const playRestTimerAlarm = async () => {
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
     try {
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
       // Three ascending tones
       [0, 0.2, 0.4].forEach((delay, i) => {
         const osc = ctx.createOscillator();
@@ -193,7 +195,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         if (hasIncomplete) {
           setTimeout(() => {
             const el = dragRefs.current[i];
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }, 200);
           break;
         }
@@ -239,10 +241,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return () => clearInterval(intervalRef.current);
   }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
-  const startRestTimer = (exerciseName, restTime) => {
+  const startRestTimer = (exerciseName, restTime, timestamp) => {
     const time = restTime ?? 60; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
     if (time <= 0) return; // Don't start timer for 0-rest exercises (supersets)
-    setRestTimer({ active: true, time, totalTime: time, startedAt: Date.now(), exerciseName });
+    // Use provided timestamp to stay in sync with lastCompletionTimestamp
+    setRestTimer({ active: true, time, totalTime: time, startedAt: timestamp || Date.now(), exerciseName });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
 
@@ -297,7 +300,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   // Determine if rest timer should fire
   // Default: no timer between superset exercises within the same round (rest=0)
   // But if user has manually set a rest time > 0 on a non-last superset exercise, respect it
-  const shouldStartRestTimer = (justCompletedExIndex, nextExp) => {
+  const shouldStartRestTimer = (justCompletedExIndex, justCompletedSetIndex, nextExp) => {
     if (!nextExp) return false;
     const exercises = activeWorkout.exercises;
     const justCompleted = exercises[justCompletedExIndex];
@@ -678,7 +681,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       }
 
       // Start rest timer if appropriate
-      if (newExpected && shouldStartRestTimer(exIndex, newExpected)) {
+      if (newExpected && shouldStartRestTimer(exIndex, setIndex, newExpected)) {
         const nextExName = updated.exercises[newExpected.exIndex]?.name || exercise.name;
         const nextExercise = updated.exercises[newExpected.exIndex];
         // Determine rest time based on context:
@@ -697,7 +700,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         } else {
           restTime = exercise.restTime ?? 60;
         }
-        startRestTimer(nextExName, restTime);
+        startRestTimer(nextExName, restTime, now);
       } else if (restTimer.active) {
         // No rest timer needed - cancel any active one
         setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
@@ -838,11 +841,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const [movedExercise] = updated.exercises.splice(fromIndex, 1);
       updated.exercises.splice(toIndex, 0, movedExercise);
       setActiveWorkout(updated);
+      remapExpectedNext(fromIndex, toIndex);
 
       // Auto-scroll to moved exercise after render
       setTimeout(() => {
         const el = dragRefs.current[toIndex];
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 100);
     }
     setDragTouch(null);
@@ -862,7 +866,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     // Auto-scroll to the exercise being moved
     setTimeout(() => {
       const el = dragRefs.current[exIndex];
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
   };
 
@@ -870,20 +874,35 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setDragState(null);
   };
 
+  // Helper: remap expectedNext index after a splice-move operation
+  const remapExpectedNext = (fromIndex, adjustedTarget) => {
+    if (!expectedNext) return;
+    let newIdx = expectedNext.exIndex;
+    if (newIdx === fromIndex) {
+      newIdx = adjustedTarget;
+    } else {
+      if (newIdx > fromIndex) newIdx--;
+      if (newIdx >= adjustedTarget) newIdx++;
+    }
+    setExpectedNext({ ...expectedNext, exIndex: newIdx });
+  };
+
   const dropExercise = (targetIndex, targetPhase) => {
     if (!dragState) return;
     const updated = { ...activeWorkout };
-    const [movedExercise] = updated.exercises.splice(dragState.exIndex, 1);
+    const fromIndex = dragState.exIndex;
+    const [movedExercise] = updated.exercises.splice(fromIndex, 1);
     movedExercise.phase = targetPhase;
-    const adjustedTarget = dragState.exIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    const adjustedTarget = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
     setDragState(null);
+    remapExpectedNext(fromIndex, adjustedTarget);
 
     // Auto-scroll to the moved exercise's new position
     setTimeout(() => {
       const el = dragRefs.current[adjustedTarget];
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
   };
 
@@ -892,8 +911,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const updated = { ...activeWorkout };
     const [movedExercise] = updated.exercises.splice(fromIndex, 1);
     movedExercise.phase = newPhase || movedExercise.phase;
-    updated.exercises.splice(toIndex, 0, movedExercise);
+    const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
+    remapExpectedNext(fromIndex, adjustedTarget);
   };
 
   const openBandPicker = (exIndex, setIndex, currentColor) => {
@@ -933,14 +954,27 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     delete exercise.supersetId;
 
     // Auto-disconnect if only one exercise remains in the superset
+    // Also restore rest time for the new last exercise in the group
     if (oldSupersetId) {
-      const remaining = updated.exercises.filter(ex => ex.supersetId === oldSupersetId);
-      if (remaining.length === 1) {
-        if (remaining[0]._preSupersetRestTime) {
-          remaining[0].restTime = remaining[0]._preSupersetRestTime;
-          delete remaining[0]._preSupersetRestTime;
+      const remainingByIndex = updated.exercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => ex.supersetId === oldSupersetId);
+
+      if (remainingByIndex.length === 1) {
+        // Only one left — remove superset entirely
+        const last = remainingByIndex[0].ex;
+        if (last._preSupersetRestTime) {
+          last.restTime = last._preSupersetRestTime;
+          delete last._preSupersetRestTime;
         }
-        delete remaining[0].supersetId;
+        delete last.supersetId;
+      } else if (remainingByIndex.length > 1) {
+        // Restore rest time for the new last exercise (was zeroed as non-last)
+        const newLast = remainingByIndex[remainingByIndex.length - 1].ex;
+        if (newLast._preSupersetRestTime && (newLast.restTime === 0 || newLast.restTime === undefined)) {
+          newLast.restTime = newLast._preSupersetRestTime;
+          delete newLast._preSupersetRestTime;
+        }
       }
     }
 
@@ -1130,16 +1164,20 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
     // Bug #11: If in drag mode, show compact view
     if (dragState && dragState.exIndex !== exIndex) {
+      const completedSets = exercise.sets?.filter(s => s.completed).length || 0;
+      const totalSets = exercise.sets?.length || 0;
       return (
         <div
           key={exIndex}
-          className={`bg-white/5 border border-white/10 rounded-xl p-3 mb-2 cursor-pointer hover:bg-white/10 transition-colors ${dragState.exIndex === exIndex ? 'opacity-50' : ''}`}
+          className="bg-white/5 border border-white/10 rounded-lg py-1.5 px-3 mb-1 cursor-pointer hover:bg-white/10 transition-colors"
           onClick={() => dropExercise(exIndex, exercise.phase || 'workout')}
         >
-          <div className="flex items-center gap-3">
-            <span className="text-cyan-500 text-sm">↓ Drop in front of:</span>
-            <span className="text-white font-medium">{exercise.name}</span>
-            <span className="text-gray-500 text-xs">({exercise.sets?.length || 0} sets)</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-500 text-xs">↓</span>
+              <span className="text-white text-sm">{exercise.name}</span>
+            </div>
+            <span className="text-gray-500 text-xs">{completedSets}/{totalSets}</span>
           </div>
         </div>
       );
@@ -1289,6 +1327,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
+        {/* Exercise notes (from template) */}
+        {exercise.notes && (
+          <div className="mb-2 px-1 py-1.5 bg-amber-900/15 border border-amber-700/20 rounded-lg">
+            <p className="text-xs text-amber-400/80 leading-relaxed">{exercise.notes}</p>
+          </div>
+        )}
+
         {/* Set headers */}
         <div className="grid grid-cols-[40px_50px_1fr_1fr_40px] gap-1 mb-1 text-xs text-gray-500 uppercase px-1">
           <span>Set</span>
@@ -1317,8 +1362,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-2 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-teal-400 font-medium flex items-center justify-center gap-1 text-sm">
-          <Icons.Plus /> Add Set ({formatDuration(exerciseRestTime)})
+          className="w-full mt-1 py-1 bg-transparent hover:bg-white/5 rounded-lg text-teal-400/70 flex items-center justify-center gap-1 text-xs">
+          <Icons.Plus /> Add Set
         </button>
       </div>
       {/* Bug #9: Drag insertion indicator - show after last card */}
@@ -1442,11 +1487,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         </div>
         {activeWorkout.notes && (
-          <div className="mt-3 bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
+          <button
+            onClick={() => setNotesExpanded(!notesExpanded)}
+            className="mt-3 w-full bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 text-left"
+          >
             <div className="text-sm text-amber-400 flex items-start gap-2">
-              <span>📋</span> <span>{activeWorkout.notes}</span>
+              <span className="flex-shrink-0">📋</span>
+              <span className={notesExpanded ? '' : 'line-clamp-1'}>{activeWorkout.notes}</span>
+              <span className="flex-shrink-0 text-amber-600 text-xs mt-0.5">{notesExpanded ? '▲' : '▼'}</span>
             </div>
-          </div>
+          </button>
         )}
       </div>
 
@@ -1537,11 +1587,36 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           // Render without phases (flat list with superset grouping)
           Object.values(groupedByPhase).flat().map((group, idx) => renderGroup(group, idx))
         )}
-        <button onClick={() => { setAddToPhase('workout'); setShowExerciseModal(true); }}
-          className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-teal-600 hover:text-teal-400 flex items-center justify-center gap-2">
-          <Icons.Plus /> Add Exercise
-        </button>
+        {/* Bottom add exercise - only show when no phases (flat list) */}
+        {!showPhases && (
+          <button onClick={() => { setAddToPhase('workout'); setShowExerciseModal(true); }}
+            className="w-full bg-gray-900 border-2 border-dashed border-gray-700 rounded-2xl p-6 text-gray-400 hover:border-teal-600 hover:text-teal-400 flex items-center justify-center gap-2">
+            <Icons.Plus /> Add Exercise
+          </button>
+        )}
       </div>
+
+      {/* Complete Next Set — green bar on right side */}
+      {expectedNext && !numpadState && !dragState && !dragTouch && (
+        <button
+          onClick={() => {
+            setCompletionFlash(true);
+            toggleSetComplete(expectedNext.exIndex, expectedNext.setIndex);
+            if (navigator.vibrate) navigator.vibrate(30);
+            setTimeout(() => setCompletionFlash(false), 400);
+          }}
+          className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-2.5 bg-green-500/70 hover:w-4 hover:bg-green-500'}`}
+          style={{
+            top: '33%',
+            height: '34%',
+            borderRadius: '8px 0 0 8px',
+          }}
+        >
+          {completionFlash && (
+            <svg className="w-6 h-6 text-white animate-ping" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+          )}
+        </button>
+      )}
 
       {/* Cancel Confirmation Modal */}
       {showCancelConfirm && (
