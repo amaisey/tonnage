@@ -336,7 +336,7 @@ export async function mergeOnFirstLogin(userId) {
 
     const { error } = await supabase
       .from('templates')
-      .upsert(rows, { ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'user_id,local_id', ignoreDuplicates: true })
 
     if (error) console.error('Template upload error:', error)
   }

@@ -238,6 +238,7 @@ function App() {
       }))
     };
     setTemplates(prev => [...prev, newTemplate]);
+    if (user) queueSyncEntry('template', newTemplate.id, 'create', newTemplate);
   };
 
   // Merge duplicate exercise into primary: rename in templates + history, delete duplicate
@@ -246,12 +247,16 @@ function App() {
     const newName = primaryExercise.name;
 
     // 1. Update templates: rename exercise references
-    setTemplates(prev => prev.map(template => ({
-      ...template,
-      exercises: template.exercises.map(ex =>
-        ex.name === oldName ? { ...ex, name: newName, bodyPart: primaryExercise.bodyPart, category: primaryExercise.category } : ex
-      )
-    })));
+    setTemplates(prev => {
+      const updated = prev.map(template => ({
+        ...template,
+        exercises: template.exercises.map(ex =>
+          ex.name === oldName ? { ...ex, name: newName, bodyPart: primaryExercise.bodyPart, category: primaryExercise.category } : ex
+        )
+      }));
+      if (user) updated.forEach(t => queueSyncEntry('template', t.id, 'update', t));
+      return updated;
+    });
 
     // 2. Update workout history in IndexedDB
     try {
@@ -359,13 +364,34 @@ function App() {
               folders={folders}
               onStartTemplate={startTemplate}
               hasActiveWorkout={!!activeWorkout}
-              onImport={t => setTemplates(prev => [...prev, t])}
-              onBulkImport={arr => setTemplates(prev => [...prev, ...arr])}
-              onUpdateTemplate={t => setTemplates(prev => prev.map(x => x.id === t.id ? t : x))}
-              onDeleteTemplate={id => setTemplates(prev => prev.filter(t => t.id !== id))}
-              onAddFolder={f => setFolders(prev => [...prev, f])}
-              onBulkAddFolders={arr => setFolders(prev => [...prev, ...arr])}
-              onDeleteFolder={id => setFolders(prev => prev.filter(f => f.id !== id))}
+              onImport={t => {
+                setTemplates(prev => [...prev, t]);
+                if (user) queueSyncEntry('template', t.id, 'create', t);
+              }}
+              onBulkImport={arr => {
+                setTemplates(prev => [...prev, ...arr]);
+                if (user) arr.forEach(t => queueSyncEntry('template', t.id, 'create', t));
+              }}
+              onUpdateTemplate={t => {
+                setTemplates(prev => prev.map(x => x.id === t.id ? t : x));
+                if (user) queueSyncEntry('template', t.id, 'update', t);
+              }}
+              onDeleteTemplate={id => {
+                setTemplates(prev => prev.filter(t => t.id !== id));
+                if (user) queueSyncEntry('template', id, 'delete', {});
+              }}
+              onAddFolder={f => {
+                setFolders(prev => [...prev, f]);
+                if (user) queueSyncEntry('folder', f.id, 'create', f);
+              }}
+              onBulkAddFolders={arr => {
+                setFolders(prev => [...prev, ...arr]);
+                if (user) arr.forEach(f => queueSyncEntry('folder', f.id, 'create', f));
+              }}
+              onDeleteFolder={id => {
+                setFolders(prev => prev.filter(f => f.id !== id));
+                if (user) queueSyncEntry('folder', id, 'delete', {});
+              }}
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
               onModalStateChange={setIsTemplatesModalOpen}
