@@ -1104,8 +1104,10 @@ const CATEGORY_BACKGROUNDS = {
 };
 
 // Exercise Detail Modal with About, History, Charts, Records tabs
-const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose }) => {
+const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose, onUpdateNotes }) => {
   const [activeTab, setActiveTab] = useState('about');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesText, setNotesText] = useState(exercise.notes || exercise.instructions || '');
   const backgroundImage = CATEGORY_BACKGROUNDS[exercise.category] || '/backgrounds/bg-1.jpg';
 
   // Get all instances of this exercise from history (guard against undefined/null)
@@ -1163,7 +1165,7 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose }) =>
             <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 border border-white/20"><Icons.X /></button>
             <div className="flex items-center gap-2">
               {onMerge && <button onClick={onMerge} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-cyan-300 font-medium hover:bg-white/20 border border-white/20 text-sm">Merge</button>}
-              <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>
+              {onEdit && !onUpdateNotes && <button onClick={onEdit} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 border border-white/20">Edit</button>}
             </div>
           </div>
           <div className="flex-1 flex flex-col justify-end p-4">
@@ -1214,9 +1216,32 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onClose }) =>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
               <h3 className="text-sm font-semibold text-white/60 mb-2">Instructions</h3>
-              <p className="text-white/80 text-sm">
-                {exercise.instructions || "No instructions added yet. Tap Edit to add instructions for this exercise."}
-              </p>
+              {editingNotes ? (
+                <div>
+                  <textarea
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    placeholder="Add exercise notes/instructions..."
+                    className="w-full bg-white/10 text-white text-sm rounded-lg p-3 min-h-[100px] focus:outline-none focus:ring-1 focus:ring-cyan-500 border border-white/20 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { onUpdateNotes?.(notesText); setEditingNotes(false); }}
+                      className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium">Save</button>
+                    <button onClick={() => { setNotesText(exercise.notes || exercise.instructions || ''); setEditingNotes(false); }}
+                      className="px-4 py-2 bg-white/10 text-white/70 rounded-lg text-sm">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => onUpdateNotes ? setEditingNotes(true) : null}
+                  className={`text-left w-full ${onUpdateNotes ? 'cursor-pointer hover:bg-white/5 rounded-lg -m-1 p-1' : ''}`}
+                >
+                  <p className="text-white/80 text-sm">
+                    {exercise.notes || exercise.instructions || (onUpdateNotes ? "Tap to add notes for this exercise." : "No instructions added yet. Go to Exercises to add instructions.")}
+                  </p>
+                </button>
+              )}
             </div>
           </div>
         )}

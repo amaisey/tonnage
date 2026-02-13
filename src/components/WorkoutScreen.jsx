@@ -30,6 +30,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [dragTouch, setDragTouch] = useState(null); // { exIndex, startY, currentY, insertBefore }
   const [completionFlash, setCompletionFlash] = useState(false); // Green bar expand animation
   const [notesExpanded, setNotesExpanded] = useState(false); // Collapsible workout notes
+  const [editingExNotes, setEditingExNotes] = useState(null); // { exIndex, text } - inline exercise notes editing
+  const undoStackRef = useRef([]); // Stack of previous workout states for undo
+  const [undoAvailable, setUndoAvailable] = useState(0); // Number of undo steps available
   const longPressTimerRef = useRef(null);
   const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
@@ -39,6 +42,39 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const scrollContainerRef = useRef(null);
   const audioContextRef = useRef(null);
   const audioInitialized = useRef(false);
+  const scrollToNextRef = useRef(false); // Flag: scroll to next set after green bar tap
+  const greenBarSwipeRef = useRef(null); // Track green bar swipe start position
+
+  // Undo system: push current state before modifications
+  const MAX_UNDO = 30;
+  const pushUndo = () => {
+    // Deep clone the current workout state
+    const snapshot = JSON.parse(JSON.stringify(activeWorkout));
+    undoStackRef.current.push({
+      workout: snapshot,
+      expectedNext: expectedNext ? { ...expectedNext } : null,
+      lastCompletionTimestamp,
+    });
+    if (undoStackRef.current.length > MAX_UNDO) {
+      undoStackRef.current.shift(); // Remove oldest
+    }
+    setUndoAvailable(undoStackRef.current.length);
+  };
+
+  const handleUndo = () => {
+    if (undoStackRef.current.length === 0) return;
+    const prev = undoStackRef.current.pop();
+    setActiveWorkout(prev.workout);
+    setExpectedNext(prev.expectedNext);
+    setLastCompletionTimestamp(prev.lastCompletionTimestamp);
+    setUndoAvailable(undoStackRef.current.length);
+    // Clear transient UI state
+    setEditingRestTime(null);
+    setDragState(null);
+    setDragTouch(null);
+    setEditingExNotes(null);
+    if (navigator.vibrate) navigator.vibrate(20);
+  };
 
   // Initialize audio context on first user interaction
   const initAudio = () => {
@@ -108,13 +144,24 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           break;
         }
       }
-      setExpectedNext(firstIncomplete || { exIndex: 0, setIndex: 0 });
+      setExpectedNext(firstIncomplete); // null if all sets done or no exercises
     }
   }, [activeWorkout?.exercises?.length]);
 
   const togglePhase = (phase) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
   };
+
+  // Auto-scroll to next set when green bar triggers a completion
+  useEffect(() => {
+    if (scrollToNextRef.current && expectedNext) {
+      scrollToNextRef.current = false;
+      setTimeout(() => {
+        const el = dragRefs.current[expectedNext.exIndex];
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    }
+  }, [expectedNext]);
 
   // Notify parent when numpad state changes
   useEffect(() => {
@@ -409,6 +456,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   // Add exercises (individually or as superset) - pre-fill with previous workout data
   // Bug #12: Now supports adding to specific phases via addToPhase state
   const addExercises = async (selectedExercises, asSuperset) => {
+    pushUndo();
     const updated = { ...activeWorkout };
     const targetPhase = addToPhase || 'workout'; // Default to 'workout' phase
 
@@ -555,6 +603,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const RAPID_COMPLETION_THRESHOLD = 4000; // 4 seconds
 
   const toggleSetComplete = (exIndex, setIndex) => {
+    pushUndo();
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
     const set = exercise.sets[setIndex];
@@ -586,6 +635,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }
         });
       });
+
+      // Fallback anchor: if no set outside the rapid window, use lastCompletionTimestamp
+      // This handles the case where 3+ sets are all completed within the rapid threshold
+      if (!anchorTime && recentCompletions.length >= 1 && lastCompletionTimestamp) {
+        anchorTime = lastCompletionTimestamp;
+      }
 
       if (recentCompletions.length >= 1 && anchorTime) {
         const totalTime = now - anchorTime;
@@ -752,6 +807,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   const addSet = (exIndex) => {
+    pushUndo();
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
     const lastSet = exercise.sets.slice(-1)[0];
@@ -764,6 +820,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   const removeSet = (exIndex, setIndex) => {
+    pushUndo();
     const updated = { ...activeWorkout };
     const exercise = updated.exercises[exIndex];
     if (exercise.sets.length > 1) {
@@ -832,6 +889,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const handleExerciseTouchEnd = () => {
     clearTimeout(longPressTimerRef.current);
     if (dragTouch && dragTouch.insertBefore !== null && dragTouch.insertBefore !== dragTouch.exIndex) {
+      pushUndo();
       const fromIndex = dragTouch.exIndex;
       let toIndex = dragTouch.insertBefore;
       // Adjust for the removal
@@ -889,6 +947,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   const dropExercise = (targetIndex, targetPhase) => {
     if (!dragState) return;
+    pushUndo();
     const updated = { ...activeWorkout };
     const fromIndex = dragState.exIndex;
     const [movedExercise] = updated.exercises.splice(fromIndex, 1);
@@ -929,6 +988,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   const removeExercise = (index) => {
+    pushUndo();
     const updated = { ...activeWorkout };
     updated.exercises.splice(index, 1);
     setActiveWorkout(updated);
@@ -937,6 +997,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   // Bug #5: Unlink restores original rest time
   const unlinkSuperset = (exIndex) => {
+    pushUndo();
     // Deep clone to prevent stale state and position revert issues
     const updated = {
       ...activeWorkout,
@@ -1327,11 +1388,37 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
-        {/* Exercise notes (from template) */}
-        {exercise.notes && (
-          <div className="mb-2 px-1 py-1.5 bg-amber-900/15 border border-amber-700/20 rounded-lg">
-            <p className="text-xs text-amber-400/80 leading-relaxed">{exercise.notes}</p>
+        {/* Exercise notes — tappable to edit */}
+        {editingExNotes?.exIndex === exIndex ? (
+          <div className="mb-2 px-1">
+            <textarea
+              value={editingExNotes.text}
+              onChange={(e) => setEditingExNotes({ ...editingExNotes, text: e.target.value })}
+              placeholder="Exercise notes..."
+              className="w-full bg-amber-900/20 text-amber-300 text-xs rounded-lg p-2 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2 mt-1">
+              <button onClick={() => {
+                const updated = { ...activeWorkout };
+                updated.exercises = [...updated.exercises];
+                updated.exercises[exIndex] = { ...updated.exercises[exIndex], notes: editingExNotes.text };
+                setActiveWorkout(updated);
+                setEditingExNotes(null);
+              }} className="px-3 py-1 bg-amber-700/50 text-amber-300 rounded text-xs font-medium">Save</button>
+              <button onClick={() => setEditingExNotes(null)} className="px-3 py-1 text-gray-400 text-xs">Cancel</button>
+            </div>
           </div>
+        ) : exercise.notes ? (
+          <button onClick={() => setEditingExNotes({ exIndex, text: exercise.notes })}
+            className="mb-2 px-1 py-1.5 bg-amber-900/15 border border-amber-700/20 rounded-lg w-full text-left hover:bg-amber-900/25">
+            <p className="text-xs text-amber-400/80 leading-relaxed">{exercise.notes}</p>
+          </button>
+        ) : (
+          <button onClick={() => setEditingExNotes({ exIndex, text: '' })}
+            className="mb-1 px-1 py-1 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
+            + Add notes
+          </button>
         )}
 
         {/* Set headers */}
@@ -1515,7 +1602,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div
         ref={scrollContainerRef}
-        className={`workout-scroll-container flex-1 overflow-y-auto p-4 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-2' : ''}`}
+        className={`workout-scroll-container flex-1 overflow-y-auto px-4 pb-4 pt-2 ${restTimer.active ? 'pt-24' : ''} ${dragState ? 'pt-1' : ''}`}
         style={{
           paddingBottom: numpadState ? '18rem' : 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           overscrollBehavior: 'contain'
@@ -1601,9 +1688,24 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         <button
           onClick={() => {
             setCompletionFlash(true);
+            scrollToNextRef.current = true;
             toggleSetComplete(expectedNext.exIndex, expectedNext.setIndex);
             if (navigator.vibrate) navigator.vibrate(30);
             setTimeout(() => setCompletionFlash(false), 400);
+          }}
+          onTouchStart={(e) => { greenBarSwipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+          onTouchEnd={(e) => {
+            if (!greenBarSwipeRef.current) return;
+            const endX = e.changedTouches[0].clientX;
+            const dx = greenBarSwipeRef.current.x - endX; // positive = swipe left
+            greenBarSwipeRef.current = null;
+            if (dx > 30) { // Swiped left at least 30px
+              setCompletionFlash(true);
+              scrollToNextRef.current = true;
+              toggleSetComplete(expectedNext.exIndex, expectedNext.setIndex);
+              if (navigator.vibrate) navigator.vibrate(30);
+              setTimeout(() => setCompletionFlash(false), 400);
+            }
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-2.5 bg-green-500/70 hover:w-4 hover:bg-green-500'}`}
           style={{
@@ -1615,6 +1717,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           {completionFlash && (
             <svg className="w-6 h-6 text-white animate-ping" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
           )}
+        </button>
+      )}
+
+      {/* Floating Undo Button */}
+      {undoAvailable > 0 && !numpadState && !dragState && !dragTouch && (
+        <button
+          onClick={handleUndo}
+          className="fixed left-3 bottom-24 z-30 bg-gray-800/90 backdrop-blur-sm border border-gray-600/50 text-white rounded-full px-3 py-2 flex items-center gap-1.5 shadow-lg hover:bg-gray-700/90 active:scale-95 transition-transform"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
+          <span className="text-xs font-medium">Undo</span>
+          {undoAvailable > 1 && <span className="text-xs text-gray-400">({undoAvailable})</span>}
         </button>
       )}
 
@@ -1711,6 +1825,17 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           onEdit={() => {
             setExerciseDetail(showExerciseDetailModal);
             setShowExerciseDetailModal(null);
+          }}
+          onUpdateNotes={(newNotes) => {
+            // Update exercise notes in the active workout
+            const exIdx = activeWorkout.exercises.findIndex(e => e.name === showExerciseDetailModal.name);
+            if (exIdx >= 0) {
+              const updated = { ...activeWorkout };
+              updated.exercises = [...updated.exercises];
+              updated.exercises[exIdx] = { ...updated.exercises[exIdx], notes: newNotes };
+              setActiveWorkout(updated);
+              setShowExerciseDetailModal(updated.exercises[exIdx]);
+            }
           }}
           onClose={() => setShowExerciseDetailModal(null)}
         />
