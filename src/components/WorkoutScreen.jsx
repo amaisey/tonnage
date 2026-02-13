@@ -504,8 +504,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
     setActiveWorkout(updated);
 
-    // Recalculate expectedNext if green bar was hidden (all sets were complete)
-    if (!expectedNext) {
+    // Recalculate expectedNext when adding exercises.
+    // The green bar disappears when all sets are complete (expectedNext = null).
+    // Adding new exercises should bring it back. Also handle the case where
+    // expectedNext exists but points to an already-completed set (stale).
+    const needsRecalc = !expectedNext ||
+      !updated.exercises[expectedNext.exIndex] ||
+      updated.exercises[expectedNext.exIndex].sets[expectedNext.setIndex]?.completed;
+
+    if (needsRecalc) {
       for (let i = 0; i < updated.exercises.length; i++) {
         const setIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
         if (setIdx >= 0) {
@@ -829,6 +836,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     });
     exercise.sets.push(newSet);
     setActiveWorkout(updated);
+
+    // If green bar was hidden (all sets complete), recalculate expectedNext
+    // so the new set gets the green "next" indicator
+    if (!expectedNext || updated.exercises[expectedNext?.exIndex]?.sets[expectedNext?.setIndex]?.completed) {
+      const newSetIndex = exercise.sets.length - 1;
+      setExpectedNext({ exIndex, setIndex: newSetIndex });
+    }
   };
 
   const removeSet = (exIndex, setIndex) => {

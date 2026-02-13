@@ -307,6 +307,22 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                 </div>
                 <button
                   onClick={async () => {
+                    if (!confirm('This will replace ALL cloud data with local data. Continue?')) return;
+                    setMessage({ type: 'info', text: 'Full sync in progress...' });
+                    try {
+                      await replaceCloudWorkouts(user.id);
+                      localStorage.setItem('tonnage-local-last-synced', new Date().toISOString());
+                      setMessage({ type: 'success', text: 'Full sync complete! All local data pushed to cloud.' });
+                    } catch (err) {
+                      setMessage({ type: 'error', text: 'Full sync failed: ' + err.message });
+                    }
+                  }}
+                  className="w-full mt-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 py-2 px-4 rounded-xl text-xs font-medium transition-colors border border-amber-600/30"
+                >
+                  Force Full Sync (Replace Cloud)
+                </button>
+                <button
+                  onClick={async () => {
                     setDiagRunning(true);
                     setDiagResult(null);
                     try {
@@ -344,8 +360,8 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                               <div className="text-red-400">{diagResult.cloud.error}</div>
                             ) : (
                               <>
-                                <div className="text-gray-300">Cloud total: {diagResult.cloud.total} | Active (no deleted_at): {diagResult.cloud.active} | Pullable: {diagResult.cloud.pullable}</div>
-                                <div className="text-gray-300">Local: {diagResult.cloud.localCount} | Last sync: {diagResult.cloud.localSyncTimestamp || 'null'}</div>
+                                <div className="text-gray-300">Cloud total: {diagResult.cloud.total} | Active: {diagResult.cloud.active} | Pullable: {diagResult.cloud.pullable}</div>
+                                <div className="text-gray-300">Local: {diagResult.cloud.localCount} | Last sync: {diagResult.cloud.localSyncTimestamp?.substring(11,19) || 'null'}</div>
                                 {diagResult.cloud.recentCloud?.map((w, i) => (
                                   <div key={i} className={`text-gray-400 ${w.deleted_at ? 'text-red-400/60' : ''}`}>
                                     #{i+1} {w.name} (id:{w.local_id}) {w.deleted_at ? `DEL:${w.deleted_at}` : ''}
@@ -355,6 +371,20 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
                             )}
                           </div>
                         )}
+                        {(() => {
+                          try {
+                            const pushLog = JSON.parse(localStorage.getItem('tonnage-last-push-log') || '[]');
+                            if (pushLog.length > 0) return (
+                              <div className="mt-2 pt-2 border-t border-white/10 space-y-0.5">
+                                <div className="text-amber-400 font-bold">Last Push Log:</div>
+                                {pushLog.map((line, i) => (
+                                  <div key={i} className={`text-gray-400 ${line.includes('ERROR') || line.includes('CAUGHT') ? 'text-red-400' : line.includes(' OK') ? 'text-green-400' : ''}`}>{line}</div>
+                                ))}
+                              </div>
+                            );
+                          } catch(_) {}
+                          return null;
+                        })()}
                       </>
                     )}
                   </div>

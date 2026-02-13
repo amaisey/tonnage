@@ -60,20 +60,23 @@ function mapToCloud(entityType, payload, userId, localId) {
 // Push local changes to Supabase
 // ============================================================
 export async function pushToCloud(userId) {
-  if (!supabase || !userId) return { pushed: 0, errors: [] }
+  if (!supabase || !userId) return { pushed: 0, errors: [], log: [] }
 
   const queue = await db.syncQueue.toArray()
-  if (queue.length === 0) return { pushed: 0, errors: [] }
+  if (queue.length === 0) return { pushed: 0, errors: [], log: ['queue empty'] }
 
   let pushed = 0
   const errors = []
+  const log = [`queue: ${queue.length} items`]
 
   for (const item of queue) {
     try {
       const table = item.entityType + 's' // 'workout' → 'workouts'
+      log.push(`processing: ${item.entityType}/${item.action} entityId=${item.entityId}`)
 
       if (item.action === 'create') {
         const cloudRow = mapToCloud(item.entityType, item.payload, userId, item.entityId)
+        log.push(`cloudRow: local_id=${cloudRow.local_id}, date=${cloudRow.date}, name=${cloudRow.name?.substring(0, 20)}`)
 
         const { data, error } = await supabase
           .from(table)
@@ -84,11 +87,17 @@ export async function pushToCloud(userId) {
           .select('id')
           .single()
 
-        if (error) throw error
+        if (error) {
+          log.push(`UPSERT ERROR: ${error.code} ${error.message}`)
+          throw error
+        }
+
+        log.push(`UPSERT OK: cloudId=${data?.id}`)
 
         // Store cloud ID back on local record
         if (item.entityType === 'workout' && data?.id) {
           await db.workouts.update(item.entityId, { cloudId: data.id })
+          log.push(`stored cloudId on local record ${item.entityId}`)
         }
       }
 
@@ -101,7 +110,11 @@ export async function pushToCloud(userId) {
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
 
-        if (error) throw error
+        if (error) {
+          log.push(`UPDATE ERROR: ${error.code} ${error.message}`)
+          throw error
+        }
+        log.push(`UPDATE OK`)
       }
 
       if (item.action === 'delete') {
@@ -111,7 +124,11 @@ export async function pushToCloud(userId) {
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
 
-        if (error) throw error
+        if (error) {
+          log.push(`DELETE ERROR: ${error.code} ${error.message}`)
+          throw error
+        }
+        log.push(`DELETE OK`)
       }
 
       // Remove from queue on success
@@ -120,10 +137,16 @@ export async function pushToCloud(userId) {
     } catch (err) {
       console.error('Sync push error for item:', item, err)
       errors.push({ item, error: err })
+      log.push(`CAUGHT: ${err.message}`)
     }
   }
 
-  return { pushed, errors }
+  // Store last push log for diagnostics
+  try {
+    localStorage.setItem('tonnage-last-push-log', JSON.stringify(log))
+  } catch (_) {}
+
+  return { pushed, errors, log }
 }
 
 // ============================================================
@@ -596,6 +619,51 @@ export async function testCloudAccess(userId) {
   }
 
   return results
+}
+
+// ============================================================
+// Direct push a single workout to cloud (bypasses queue)
+// Used by finishWorkout for immediate, reliable cloud upload.
+// Falls back to queueing if the direct push fails (e.g. offline).
+// ============================================================
+export async function directPushWorkout(userId, workoutData, localId) {
+  if (!supabase || !userId) {
+    // No Supabase or not logged in — queue for later
+    await queueSyncEntry('workout', localId, 'create', workoutData)
+    return { success: false, reason: 'no-supabase' }
+  }
+
+  try {
+    const cloudRow = mapToCloud('workout', workoutData, userId, localId)
+    const { data, error } = await supabase
+      .from('workouts')
+      .upsert(cloudRow, {
+        onConflict: 'user_id,local_id',
+        ignoreDuplicates: false
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('Direct push error:', error)
+      // Queue for retry
+      await queueSyncEntry('workout', localId, 'create', workoutData)
+      return { success: false, reason: error.message }
+    }
+
+    // Store cloud ID on local record
+    if (data?.id) {
+      await db.workouts.update(localId, { cloudId: data.id })
+    }
+
+    console.log('Direct push OK: cloudId=', data?.id, 'localId=', localId)
+    return { success: true, cloudId: data?.id }
+  } catch (err) {
+    console.error('Direct push exception:', err)
+    // Queue for retry on next sync
+    await queueSyncEntry('workout', localId, 'create', workoutData)
+    return { success: false, reason: err.message }
+  }
 }
 
 // ============================================================
