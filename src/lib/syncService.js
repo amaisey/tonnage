@@ -5,6 +5,58 @@ import { db } from '../db/workoutDb'
 const FETCH_TIMEOUT_MS = 30000
 
 // ============================================================
+// Map local camelCase shapes → cloud snake_case columns
+// Prevents PostgREST 400 errors from unknown column names
+// ============================================================
+function mapToCloud(entityType, payload, userId, localId) {
+  const base = { user_id: userId, updated_at: new Date().toISOString() }
+
+  switch (entityType) {
+    case 'workout':
+      return {
+        ...base,
+        local_id: String(localId),
+        name: payload.name,
+        notes: payload.notes || null,
+        start_time: payload.startTime || payload.start_time || payload.date,
+        date: payload.date,
+        duration_ms: payload.duration || payload.duration_ms || 0,
+        exercises: payload.exercises || [],
+      }
+    case 'exercise':
+      return {
+        ...base,
+        local_id: String(localId),
+        name: payload.name,
+        body_part: payload.bodyPart || payload.body_part || 'Other',
+        category: payload.category || 'other',
+      }
+    case 'template':
+      return {
+        ...base,
+        local_id: String(localId),
+        name: payload.name,
+        folder_id: payload.folderId || payload.folder_id || null,
+        estimated_time: payload.estimatedTime || payload.estimated_time || null,
+        notes: payload.notes || null,
+        exercises: payload.exercises || [],
+      }
+    case 'folder':
+      return {
+        ...base,
+        local_id: String(localId),
+        name: payload.name,
+        parent_id: payload.parentId || payload.parent_id || 'root',
+      }
+    default: {
+      // Fallback: strip local-only fields, add base
+      const { id, cloudId, ...rest } = payload
+      return { ...rest, ...base, local_id: String(localId) }
+    }
+  }
+}
+
+// ============================================================
 // Push local changes to Supabase
 // ============================================================
 export async function pushToCloud(userId) {
@@ -21,14 +73,11 @@ export async function pushToCloud(userId) {
       const table = item.entityType + 's' // 'workout' → 'workouts'
 
       if (item.action === 'create') {
+        const cloudRow = mapToCloud(item.entityType, item.payload, userId, item.entityId)
+
         const { data, error } = await supabase
           .from(table)
-          .upsert({
-            ...item.payload,
-            user_id: userId,
-            local_id: String(item.entityId),
-            updated_at: new Date().toISOString()
-          }, {
+          .upsert(cloudRow, {
             onConflict: 'user_id,local_id',
             ignoreDuplicates: false
           })
@@ -44,9 +93,11 @@ export async function pushToCloud(userId) {
       }
 
       if (item.action === 'update') {
+        const cloudRow = mapToCloud(item.entityType, item.payload, userId, item.entityId)
+
         const { error } = await supabase
           .from(table)
-          .update({ ...item.payload, updated_at: new Date().toISOString() })
+          .update(cloudRow)
           .eq('user_id', userId)
           .eq('local_id', String(item.entityId))
 
@@ -296,26 +347,27 @@ export async function mergeOnFirstLogin(userId) {
 
 // ============================================================
 // Replace ALL cloud workouts for a user (used by Import Backup)
-// 1. Soft-delete existing cloud workouts
-// 2. Batch upsert imported workouts (un-deletes matched rows)
-// 3. Orphaned cloud rows stay soft-deleted
+// 1. Hard-delete ALL existing cloud workouts
+// 2. Fresh-insert all local workouts (no conflict resolution needed)
+// Previous soft-delete + upsert approach failed because RLS
+// policies filter deleted_at != null rows, making upsert unable
+// to "see" and un-delete them.
 // ============================================================
 export async function replaceCloudWorkouts(userId) {
   if (!supabase || !userId) return
 
-  // Soft-delete all existing cloud workouts for this user
+  // Step 1: Hard-delete ALL cloud workouts for this user
   const { error: deleteError } = await supabase
     .from('workouts')
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq('user_id', userId)
-    .is('deleted_at', null)
 
   if (deleteError) {
-    console.error('Cloud workout soft-delete error:', deleteError)
+    console.error('Cloud workout delete error:', deleteError)
     throw deleteError
   }
 
-  // Batch upsert all local workouts
+  // Step 2: Fresh-insert all local workouts
   const allWorkouts = await db.workouts.toArray()
   if (allWorkouts.length === 0) return
 
@@ -323,28 +375,24 @@ export async function replaceCloudWorkouts(userId) {
   const replaceTimestamp = new Date().toISOString()
 
   for (let i = 0; i < allWorkouts.length; i += BATCH_SIZE) {
-    const batch = allWorkouts.slice(i, i + BATCH_SIZE).map(w => ({
-      user_id: userId,
-      local_id: String(w.id),
-      name: w.name,
-      notes: w.notes || null,
-      start_time: w.startTime || w.date,
-      date: w.date,
-      duration_ms: w.duration || 0,
-      exercises: w.exercises || [],
-      updated_at: replaceTimestamp,
-      deleted_at: null // Explicitly un-delete if row matched
-    }))
+    const batch = allWorkouts.slice(i, i + BATCH_SIZE).map(w =>
+      mapToCloud('workout', w, userId, w.id)
+    )
+    // Override updated_at to use consistent timestamp across batches
+    batch.forEach(row => { row.updated_at = replaceTimestamp })
 
     const { data, error } = await supabase
       .from('workouts')
-      .upsert(batch, { onConflict: 'user_id,local_id', ignoreDuplicates: false })
+      .insert(batch)
       .select('id, local_id')
 
     if (error) {
-      console.error('Batch replace error:', error)
-    } else if (data) {
-      // Store cloud IDs back on local records
+      console.error('Batch insert error:', error)
+      throw error  // Surface failure to caller
+    }
+
+    // Store cloud IDs back on local records
+    if (data) {
       for (const row of data) {
         if (row.local_id) {
           const localIdNum = Number(row.local_id)
