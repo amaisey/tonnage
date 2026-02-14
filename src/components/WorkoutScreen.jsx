@@ -1646,7 +1646,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             activeField={activeField && activeField.setIndex === setIndex ? activeField.field : null}
             isNextExpected={isNextExpectedSet(exIndex, setIndex)}
             lastCompletionTimestamp={lastCompletionTimestamp}
-            frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
+            frozenElapsed={getFrozenElapsed(exIndex, setIndex)}
+            allSets={exercise.sets}
+            exerciseStartTime={activeWorkout.startTime} />
         ))}
         <button onClick={() => addSet(exIndex)}
           className="w-full bg-transparent hover:bg-white/5 rounded text-teal-400/40 flex items-center justify-center gap-0.5 text-[9px]"
@@ -1749,7 +1751,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }}
       />
 
-      <div className="px-4 pt-1 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2.25rem)' }}>
+      <div className="px-4 pt-1 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.25rem)' }}>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0 text-center">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
@@ -1932,12 +1934,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Undo button — top left corner */}
-      {undoAvailable > 0 && !dragState && !dragTouch && (
+      {/* Undo button — top left corner, always visible but dimmed when no undo */}
+      {!dragState && !dragTouch && (
         <button
           onClick={handleUndo}
-          className="fixed z-30 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-gray-400 hover:text-white hover:bg-white/20 active:bg-white/30 transition-all"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 8px)', left: '12px' }}
+          disabled={undoAvailable === 0}
+          className={`fixed z-50 flex items-center justify-center w-8 h-8 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 6px)', left: '12px' }}
           title="Undo"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
