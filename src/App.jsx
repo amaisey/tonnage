@@ -395,6 +395,10 @@ function App() {
                 setFolders(prev => [...prev, ...arr]);
                 if (user) arr.forEach(f => queueSyncEntry('folder', f.id, 'create', f));
               }}
+              onUpdateFolder={f => {
+                setFolders(prev => prev.map(x => x.id === f.id ? f : x));
+                if (user) queueSyncEntry('folder', f.id, 'update', f);
+              }}
               onDeleteFolder={id => {
                 setFolders(prev => prev.filter(f => f.id !== id));
                 if (user) queueSyncEntry('folder', id, 'delete', {});

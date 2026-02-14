@@ -675,16 +675,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
     setActiveWorkout(updated);
 
-    // Recalculate expectedNext when adding exercises.
-    // The green bar disappears when all sets are complete (expectedNext = null).
-    // Adding new exercises should bring it back. Also handle the case where
-    // expectedNext exists but points to an already-completed set (stale).
-    // Uses phase order (warmup → workout → cooldown) to match visual display.
-    const needsRecalc = !expectedNext ||
-      !updated.exercises[expectedNext.exIndex] ||
-      updated.exercises[expectedNext.exIndex].sets[expectedNext.setIndex]?.completed;
-
-    if (needsRecalc) {
+    // Always recalculate expectedNext after adding exercises.
+    // New exercises may appear before the current "next" in phase order,
+    // and we need to point to the true first incomplete set.
+    // Preserve lastCompletionTimestamp so the count-up timer keeps running.
+    {
       const phases = { warmup: [], workout: [], cooldown: [] };
       updated.exercises.forEach((e, idx) => { phases[e.phase || 'workout'].push(idx); });
       const ordered = [...phases.warmup, ...phases.workout, ...phases.cooldown];
@@ -1100,7 +1095,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const [movedExercise] = updated.exercises.splice(fromIndex, 1);
       updated.exercises.splice(toIndex, 0, movedExercise);
       setActiveWorkout(updated);
-      remapExpectedNext();
+      remapExpectedNext(updated.exercises);
 
       // Auto-scroll to moved exercise after render
       setTimeout(() => {
@@ -1133,13 +1128,25 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     setDragState(null);
   };
 
-  // Helper: after a reorder, force full timer/next-set reset.
-  // Nulls expectedNext (validator useEffect recalculates), clears all frozen timers,
-  // and resets the live timer anchor so stale index-based state doesn't persist.
-  const remapExpectedNext = () => {
-    setExpectedNext(null);
+  // Helper: after a reorder or insertion, recalculate expectedNext from the
+  // updated exercises array. Clears frozen timers (indices changed) but
+  // PRESERVES lastCompletionTimestamp so the count-up timer keeps running.
+  const remapExpectedNext = (updatedExercises) => {
     setFrozenElapsed({});
-    setLastCompletionTimestamp(null);
+    // Recalculate expectedNext from the (possibly reordered) exercises
+    const ex = updatedExercises || activeWorkout?.exercises || [];
+    const phases = { warmup: [], workout: [], cooldown: [] };
+    ex.forEach((e, idx) => { phases[e.phase || 'workout'].push(idx); });
+    const ordered = [...phases.warmup, ...phases.workout, ...phases.cooldown];
+    let firstIncomplete = null;
+    for (const i of ordered) {
+      const setIdx = ex[i].sets.findIndex(s => !s.completed);
+      if (setIdx >= 0) {
+        firstIncomplete = { exIndex: i, setIndex: setIdx };
+        break;
+      }
+    }
+    setExpectedNext(firstIncomplete);
   };
 
   const dropExercise = (targetIndex, targetPhase) => {
@@ -1153,7 +1160,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
     setDragState(null);
-    remapExpectedNext();
+    remapExpectedNext(updated.exercises);
 
     // Auto-scroll to the moved exercise's new position
     setTimeout(() => {
@@ -1170,7 +1177,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
     updated.exercises.splice(adjustedTarget, 0, movedExercise);
     setActiveWorkout(updated);
-    remapExpectedNext();
+    remapExpectedNext(updated.exercises);
   };
 
   const openBandPicker = (exIndex, setIndex, currentColor) => {
@@ -1711,7 +1718,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-black">
+    <div className="fixed inset-0 flex flex-col bg-black" style={{ overscrollBehaviorX: 'none' }}>
       {/* Background Image - fixed position */}
       <div className="fixed inset-0 z-0 bg-black">
         <img src="/backgrounds/bg-1.jpg" alt="" className="w-full h-full object-cover opacity-50" />
@@ -1902,7 +1909,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               setTimeout(() => setCompletionFlash(false), 400);
             }
           }}
-          className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-2.5 bg-green-500/70 hover:w-4 hover:bg-green-500'}`}
+          className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-3.5 bg-green-500/70 hover:w-5 hover:bg-green-500'}`}
           style={{
             top: numpadState ? '15%' : '33%',
             height: numpadState ? '25%' : '34%',
@@ -1916,17 +1923,28 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       )}
 
       {/* Undo bar — left side, mirrors green "next" bar on right */}
+      {/* Outer touch-catcher prevents iOS/browser swipe-back gesture from the left edge */}
       {undoAvailable > 0 && !dragState && !dragTouch && (
-        <button
-          onClick={handleUndo}
-          className="fixed left-0 z-30 flex items-center justify-center transition-all duration-300 ease-out w-2.5 bg-rose-900/70 hover:w-4 hover:bg-rose-800 active:w-10 active:bg-rose-700"
+        <div
+          className="fixed left-0 z-30"
           style={{
             top: numpadState ? '15%' : '33%',
             height: numpadState ? '25%' : '34%',
-            borderRadius: '0 8px 8px 0',
+            width: '24px',
+            touchAction: 'none',
           }}
+          onTouchStart={(e) => e.preventDefault()}
         >
-        </button>
+          <button
+            onClick={handleUndo}
+            className="h-full w-2.5 flex items-center justify-center transition-all duration-300 ease-out bg-rose-900/70 hover:w-4 hover:bg-rose-800 active:w-10 active:bg-rose-700"
+            style={{
+              borderRadius: '0 8px 8px 0',
+              touchAction: 'none',
+            }}
+          >
+          </button>
+        </div>
       )}
 
       {/* Cancel Confirmation Modal */}
