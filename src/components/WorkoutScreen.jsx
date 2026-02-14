@@ -7,7 +7,7 @@ import { workoutDb } from '../db/workoutDb';
 
 const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, exercises, getPreviousData, onNumpadStateChange, onScroll }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
-  const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '' });
+  const [restTimer, setRestTimer] = useState({ active: false, time: 0, totalTime: 0, exerciseName: '', exIndex: null });
   const [editingRestTime, setEditingRestTime] = useState(null); // exercise index
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
@@ -386,11 +386,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     return () => clearInterval(intervalRef.current);
   }, [restTimer.active, restTimer.startedAt, restTimer.totalTime]);
 
-  const startRestTimer = (exerciseName, restTime, timestamp) => {
+  const startRestTimer = (exerciseName, restTime, timestamp, exIdx) => {
     const time = restTime ?? 60; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
     if (time <= 0) return; // Don't start timer for 0-rest exercises (supersets)
     // Use provided timestamp to stay in sync with lastCompletionTimestamp
-    setRestTimer({ active: true, time, totalTime: time, startedAt: timestamp || Date.now(), exerciseName });
+    setRestTimer({ active: true, time, totalTime: time, startedAt: timestamp || Date.now(), exerciseName, exIndex: exIdx ?? null });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
   };
 
@@ -944,10 +944,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         } else {
           restTime = exercise.restTime ?? 60;
         }
-        startRestTimer(nextExName, restTime, now);
+        startRestTimer(nextExName, restTime, now, exIndex);
       } else if (restTimer.active) {
         // No rest timer needed - cancel any active one
-        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
+        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '', exIndex: null });
       }
     } else {
       // Bug #7: Uncompleting a set - restore timer state properly
@@ -989,7 +989,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       // Cancel any active rest timer
       if (restTimer.active) {
-        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' });
+        setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '', exIndex: null });
       }
     }
     setActiveWorkout(updated);
@@ -1459,8 +1459,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-4 px-4 pb-0 rounded-2xl mb-3`} transition-transform`}>
-        <div className="flex items-center justify-between mb-1">
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `px-3 pt-2 pb-0 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-3 px-4 pb-0 rounded-2xl mb-3`} transition-transform`}>
+        <div className="flex items-center justify-between mb-0">
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
             <button
@@ -1732,25 +1732,34 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         timeRemaining={restTimer.time}
         totalTime={restTimer.totalTime}
         exerciseName={restTimer.exerciseName}
-        onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '' })}
+        onSkip={() => setRestTimer({ active: false, time: 0, totalTime: 0, startedAt: null, exerciseName: '', exIndex: null })}
         onMinimize={() => setRestTimerMinimized(true)}
         onExpand={() => setRestTimerMinimized(false)}
-        onAddTime={(delta) => setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }))}
+        onAddTime={(delta) => {
+          setRestTimer(prev => ({ ...prev, totalTime: Math.max(0, prev.totalTime + delta) }));
+          // Also update the exercise's target rest time for future sets
+          if (restTimer.exIndex != null && activeWorkout?.exercises?.[restTimer.exIndex]) {
+            const updated = { ...activeWorkout };
+            updated.exercises = [...updated.exercises];
+            const ex = { ...updated.exercises[restTimer.exIndex] };
+            ex.restTime = Math.max(0, (ex.restTime ?? 60) + delta);
+            updated.exercises[restTimer.exIndex] = ex;
+            setActiveWorkout(updated);
+          }
+        }}
       />
 
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+      <div className="px-4 pt-1 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2.25rem)' }}>
         <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div>
-              <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-                className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full truncate" />
-            </div>
+          <div className="flex-1 min-w-0 text-center">
+            <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
+              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full text-center truncate" />
             {/* Bug #15: Pace tracking display */}
             {(() => {
               const pace = getPaceInfo();
               if (pace) {
                 return (
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center justify-center gap-2 text-sm">
                     <span className="text-gray-400">{pace.elapsedMinutes}/{pace.estimatedMinutes} min</span>
                     <span className="text-gray-600">•</span>
                     <span className="text-gray-400">{pace.completedSets}/{pace.totalSets} sets</span>
@@ -1761,11 +1770,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                   </div>
                 );
               }
-              return <div className="text-sm text-gray-400">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>;
+              return <div className="text-sm text-gray-400 text-center">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>;
             })()}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-2 text-sm whitespace-nowrap">Cancel</button>
+            <button onClick={() => setShowCancelConfirm(true)} className="text-red-400 hover:text-red-300 px-3 py-1 text-sm whitespace-nowrap">Cancel</button>
             <button onClick={() => {
               const hasIncomplete = activeWorkout.exercises.some(ex => ex.sets.some(s => !s.completed));
               if (hasIncomplete) {
@@ -1773,18 +1782,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               } else {
                 onFinish(activeWorkout);
               }
-            }} className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap">Finish</button>
+            }} className="bg-green-500 text-white px-3 py-1 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap text-sm">Finish</button>
           </div>
         </div>
         {activeWorkout.notes && (
           <button
             onClick={() => setNotesExpanded(!notesExpanded)}
-            className="mt-3 w-full bg-amber-900/20 border border-amber-700/30 rounded-lg p-2 text-left"
+            className="mt-1 w-full bg-amber-900/20 border border-amber-700/30 rounded-lg px-2 py-1 text-left"
           >
-            <div className="text-sm text-amber-400 flex items-start gap-2">
+            <div className="text-xs text-amber-400 flex items-start gap-2">
               <span className="flex-shrink-0">📋</span>
               <span className={notesExpanded ? '' : 'line-clamp-1'}>{activeWorkout.notes}</span>
-              <span className="flex-shrink-0 text-amber-600 text-xs mt-0.5">{notesExpanded ? '▲' : '▼'}</span>
+              <span className="flex-shrink-0 text-amber-600 text-xs">{notesExpanded ? '▲' : '▼'}</span>
             </div>
           </button>
         )}
@@ -1912,8 +1921,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-3.5 bg-green-500/70 hover:w-5 hover:bg-green-500'}`}
           style={{
-            top: numpadState ? '15%' : '33%',
-            height: numpadState ? '25%' : '34%',
+            top: numpadState ? '13%' : '30%',
+            height: numpadState ? '28%' : '38%',
             borderRadius: '8px 0 0 8px',
           }}
         >
@@ -1923,29 +1932,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Undo bar — left side, mirrors green "next" bar on right */}
-      {/* Outer touch-catcher prevents iOS/browser swipe-back gesture from the left edge */}
+      {/* Undo button — top left corner */}
       {undoAvailable > 0 && !dragState && !dragTouch && (
-        <div
-          className="fixed left-0 z-30"
-          style={{
-            top: numpadState ? '15%' : '33%',
-            height: numpadState ? '25%' : '34%',
-            width: '24px',
-            touchAction: 'none',
-          }}
-          onTouchStart={(e) => e.preventDefault()}
+        <button
+          onClick={handleUndo}
+          className="fixed z-30 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-gray-400 hover:text-white hover:bg-white/20 active:bg-white/30 transition-all"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 8px)', left: '12px' }}
+          title="Undo"
         >
-          <button
-            onClick={handleUndo}
-            className="h-full w-2.5 flex items-center justify-center transition-all duration-300 ease-out bg-rose-900/70 hover:w-4 hover:bg-rose-800 active:w-10 active:bg-rose-700"
-            style={{
-              borderRadius: '0 8px 8px 0',
-              touchAction: 'none',
-            }}
-          >
-          </button>
-        </div>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
+        </button>
       )}
 
       {/* Cancel Confirmation Modal */}
