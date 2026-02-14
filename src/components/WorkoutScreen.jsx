@@ -31,6 +31,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [completionFlash, setCompletionFlash] = useState(false); // Green bar expand animation
   const [notesExpanded, setNotesExpanded] = useState(false); // Collapsible workout notes
   const [editingExNotes, setEditingExNotes] = useState(null); // { exIndex, text } - inline exercise notes editing
+  const [expandedExNotes, setExpandedExNotes] = useState(null); // exIndex of expanded notes
+  const [editingWorkoutNotes, setEditingWorkoutNotes] = useState(false); // editing overall workout notes
   const undoStackRef = useRef([]); // Stack of previous workout states for undo
   const [undoAvailable, setUndoAvailable] = useState(0); // Number of undo steps available
   const longPressTimerRef = useRef(null);
@@ -806,44 +808,54 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       // so changing rest time mid-rest doesn't retroactively update the target
       set.restTimeAtCompletion = exercise.restTime ?? 60;
 
-      // Bug #10: Check for rapid completions and redistribute time
+      // Bug #10: Check for rapid completions and redistribute time evenly
+      // Find all sets that were completed rapidly (within threshold of NOW, using original timestamps)
+      // Key fix: use _originalCompletedAt to avoid re-detecting previously redistributed sets
       const recentCompletions = [];
       let anchorTime = null;
 
       updated.exercises.forEach((ex, eIdx) => {
         ex.sets?.forEach((s, sIdx) => {
-          if (s.completed && s.completedAt) {
-            const timeDiff = now - s.completedAt;
+          if (s.completed && s.completedAt && !(eIdx === exIndex && sIdx === setIndex)) {
+            // Use the original completion time (before any redistribution) to detect rapid sets
+            const originalTime = s._originalCompletedAt || s.completedAt;
+            const timeDiff = now - originalTime;
             if (timeDiff <= RAPID_COMPLETION_THRESHOLD && timeDiff > 0) {
-              recentCompletions.push({ exIndex: eIdx, setIndex: sIdx, completedAt: s.completedAt });
+              recentCompletions.push({ exIndex: eIdx, setIndex: sIdx, originalTime });
             } else if (timeDiff > RAPID_COMPLETION_THRESHOLD) {
-              if (!anchorTime || s.completedAt > anchorTime) {
-                anchorTime = s.completedAt;
+              if (!anchorTime || originalTime > anchorTime) {
+                anchorTime = originalTime;
               }
             }
           }
         });
       });
 
-      // Fallback anchor: if no set outside the rapid window, use lastCompletionTimestamp
-      // This handles the case where 3+ sets are all completed within the rapid threshold
-      if (!anchorTime && recentCompletions.length >= 1 && lastCompletionTimestamp) {
-        anchorTime = lastCompletionTimestamp;
+      // Fallback anchor: if no set outside the rapid window, use lastCompletionTimestamp or workout start
+      if (!anchorTime && recentCompletions.length >= 1) {
+        // Use the rapid anchor if we stored one, otherwise lastCompletionTimestamp, otherwise workout start
+        anchorTime = updated._rapidAnchor || lastCompletionTimestamp || activeWorkout.startTime;
       }
 
       if (recentCompletions.length >= 1 && anchorTime) {
+        // Store the anchor so subsequent rapid completions reuse it
+        updated._rapidAnchor = anchorTime;
+
         const totalTime = now - anchorTime;
-        const numSets = recentCompletions.length + 1;
+        const numSets = recentCompletions.length + 1; // +1 for the current set
         const timePerSet = Math.round(totalTime / numSets);
-        recentCompletions.sort((a, b) => a.completedAt - b.completedAt);
+        recentCompletions.sort((a, b) => a.originalTime - b.originalTime);
         recentCompletions.forEach((comp, idx) => {
-          const newTime = anchorTime + (timePerSet * (idx + 1));
-          updated.exercises[comp.exIndex].sets[comp.setIndex].completedAt = newTime;
+          const s = updated.exercises[comp.exIndex].sets[comp.setIndex];
+          // Preserve original timestamp before redistribution
+          if (!s._originalCompletedAt) s._originalCompletedAt = s.completedAt;
+          s.completedAt = anchorTime + (timePerSet * (idx + 1));
         });
+        // Preserve original for current set too
+        set._originalCompletedAt = now;
         set.completedAt = anchorTime + (timePerSet * numSets);
 
-        // Bug #16: After redistribution, recalculate frozenElapsed for all affected sets
-        // so display times reflect the redistributed timestamps, not stale values
+        // Recalculate frozenElapsed for all affected sets
         const redistributedFrozen = {};
         let prevTime = anchorTime;
         recentCompletions.forEach((comp) => {
@@ -854,6 +866,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         redistributedFrozen[`${exIndex}-${setIndex}`] = Math.round((set.completedAt - prevTime) / 1000);
         setFrozenElapsed(prev => ({ ...prev, ...redistributedFrozen }));
       } else {
+        // Clear rapid anchor when a non-rapid completion happens
+        delete updated._rapidAnchor;
         // Freeze the elapsed time for the set being completed (non-rapid path)
         // Use actual completedAt timestamps for reliability instead of potentially stale state
         const existingFrozen = frozenElapsed[`${exIndex}-${setIndex}`];
@@ -1461,20 +1475,20 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchEnd={handleExerciseTouchEnd}
         className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `px-3 pt-2 pb-0 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-3 px-4 pb-0 rounded-2xl mb-3`} transition-transform`}>
         <div className="flex items-center justify-between mb-0">
-          <div className="flex items-center gap-2">
-            {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {/* Drag handle */}
             <button
               onClick={() => dragState ? cancelDrag() : startDrag(exIndex)}
-              className={`p-1 rounded touch-none ${dragState?.exIndex === exIndex ? 'text-cyan-400 bg-cyan-900/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/10'}`}
+              className={`p-0.5 rounded touch-none flex-shrink-0 ${dragState?.exIndex === exIndex ? 'text-cyan-400 bg-cyan-900/30' : 'text-gray-600 hover:text-gray-300 hover:bg-white/10'}`}
               title="Hold to reorder"
             >
               <Icons.GripVertical />
             </button>
             {isSuperset && (
-              <div className={`w-1 h-8 rounded-full ${supersetColorDot || 'bg-teal-500'}`} />
+              <div className={`w-1 h-6 rounded-full flex-shrink-0 ${supersetColorDot || 'bg-teal-500'}`} />
             )}
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button onClick={async () => {
                   setShowExerciseDetailModal(exercise);
                   try {
@@ -1487,24 +1501,49 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                   }
                 }} className="font-semibold text-white hover:text-cyan-400 transition-colors text-left">{exercise.name}</button>
                 {typeInfo && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
+                  <span className={`text-xs px-1.5 py-0 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-400">{exercise.bodyPart}</span>
-                {(!isSuperset || isFirst) && (
-                  <select
-                    value={exercise.phase || 'workout'}
-                    onChange={(e) => setExercisePhase(exIndex, e.target.value)}
-                    className={`text-[10px] pl-1 pr-0 py-0.5 rounded bg-white/5 border-none outline-none appearance-none cursor-pointer ${EXERCISE_PHASES[exercise.phase || 'workout'].textColor}`}
-                    style={{ WebkitAppearance: 'none', backgroundImage: 'none' }}
-                  >
-                    {Object.entries(EXERCISE_PHASES).map(([key, phase]) => (
-                      <option key={key} value={key}>{phase.icon} {phase.label}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
+              {/* Exercise notes — inline, collapsible like workout notes */}
+              {editingExNotes?.exIndex === exIndex ? (
+                <div className="mt-0.5">
+                  <textarea
+                    value={editingExNotes.text}
+                    onChange={(e) => setEditingExNotes({ ...editingExNotes, text: e.target.value })}
+                    placeholder="Workout notes for this exercise..."
+                    className="w-full bg-amber-900/20 text-amber-300 text-xs rounded p-1.5 min-h-[40px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 mt-0.5">
+                    <button onClick={() => {
+                      const updated = { ...activeWorkout };
+                      updated.exercises = [...updated.exercises];
+                      updated.exercises[exIndex] = { ...updated.exercises[exIndex], notes: editingExNotes.text };
+                      setActiveWorkout(updated);
+                      setEditingExNotes(null);
+                    }} className="px-2 py-0.5 bg-amber-700/50 text-amber-300 rounded text-xs font-medium">Save</button>
+                    <button onClick={() => setEditingExNotes(null)} className="px-2 py-0.5 text-gray-400 text-xs">Cancel</button>
+                  </div>
+                </div>
+              ) : exercise.notes ? (
+                <div className="flex items-center gap-1 mt-0">
+                  <button onClick={() => setExpandedExNotes(expandedExNotes === exIndex ? null : exIndex)}
+                    className="flex-1 min-w-0 text-left">
+                    <p className={`text-xs text-amber-400/70 ${expandedExNotes === exIndex ? '' : 'truncate'}`}>{exercise.notes}</p>
+                  </button>
+                  {expandedExNotes === exIndex && (
+                    <button onClick={() => setEditingExNotes({ exIndex, text: exercise.notes })}
+                      className="text-amber-500/50 hover:text-amber-400 flex-shrink-0 p-0.5">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => setEditingExNotes({ exIndex, text: '' })}
+                  className="text-[10px] text-gray-600 hover:text-amber-400/60 text-left">
+                  + notes
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -1586,39 +1625,6 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               </div>
             </div>
           </div>
-        )}
-
-        {/* Workout-specific notes — tappable to edit */}
-        {editingExNotes?.exIndex === exIndex ? (
-          <div className="mb-0 px-1">
-            <textarea
-              value={editingExNotes.text}
-              onChange={(e) => setEditingExNotes({ ...editingExNotes, text: e.target.value })}
-              placeholder="Workout notes for this exercise..."
-              className="w-full bg-amber-900/20 text-amber-300 text-xs rounded-lg p-2 min-h-[50px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
-              autoFocus
-            />
-            <div className="flex gap-2 mt-1">
-              <button onClick={() => {
-                const updated = { ...activeWorkout };
-                updated.exercises = [...updated.exercises];
-                updated.exercises[exIndex] = { ...updated.exercises[exIndex], notes: editingExNotes.text };
-                setActiveWorkout(updated);
-                setEditingExNotes(null);
-              }} className="px-3 py-1 bg-amber-700/50 text-amber-300 rounded text-xs font-medium">Save</button>
-              <button onClick={() => setEditingExNotes(null)} className="px-3 py-1 text-gray-400 text-xs">Cancel</button>
-            </div>
-          </div>
-        ) : exercise.notes ? (
-          <button onClick={() => setEditingExNotes({ exIndex, text: exercise.notes })}
-            className="mb-0 px-1 py-0 bg-amber-900/10 rounded w-full text-left hover:bg-amber-900/20">
-            <p className="text-xs text-amber-400/70 truncate">{exercise.notes}</p>
-          </button>
-        ) : (
-          <button onClick={() => setEditingExNotes({ exIndex, text: '' })}
-            className="mb-0 px-1 py-0 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
-            + notes
-          </button>
         )}
 
         {/* Set headers */}
@@ -1751,11 +1757,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         }}
       />
 
-      <div className="px-4 pt-1 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.25rem)' }}>
+      <div className="px-4 pt-0 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0 text-center">
+          <div className="flex-1 min-w-0 text-center pl-6">
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
-              className="text-xl font-bold text-white bg-transparent border-none focus:outline-none w-full text-center truncate" />
+              className="text-lg font-bold text-white bg-transparent border-none focus:outline-none w-full text-center truncate" />
             {/* Bug #15: Pace tracking display */}
             {(() => {
               const pace = getPaceInfo();
@@ -1787,17 +1793,40 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             }} className="bg-green-500 text-white px-3 py-1 rounded-lg font-medium hover:bg-green-600 whitespace-nowrap text-sm">Finish</button>
           </div>
         </div>
-        {activeWorkout.notes && (
-          <button
-            onClick={() => setNotesExpanded(!notesExpanded)}
-            className="mt-1 w-full bg-amber-900/20 border border-amber-700/30 rounded-lg px-2 py-1 text-left"
-          >
-            <div className="text-xs text-amber-400 flex items-start gap-2">
-              <span className="flex-shrink-0">📋</span>
-              <span className={notesExpanded ? '' : 'line-clamp-1'}>{activeWorkout.notes}</span>
-              <span className="flex-shrink-0 text-amber-600 text-xs">{notesExpanded ? '▲' : '▼'}</span>
+        {activeWorkout.notes && !editingWorkoutNotes && (
+          <div className="mt-1 w-full bg-amber-900/20 border border-amber-700/30 rounded-lg px-2 py-1">
+            <div className="flex items-start gap-2">
+              <button onClick={() => setNotesExpanded(!notesExpanded)} className="flex-1 text-left min-w-0">
+                <div className="text-xs text-amber-400 flex items-start gap-1.5">
+                  <span className="flex-shrink-0">📋</span>
+                  <span className={notesExpanded ? '' : 'line-clamp-1'}>{activeWorkout.notes}</span>
+                </div>
+              </button>
+              {notesExpanded && (
+                <button onClick={() => setEditingWorkoutNotes(true)}
+                  className="text-amber-500/50 hover:text-amber-400 flex-shrink-0 p-0.5 mt-0.5">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                </button>
+              )}
+              <button onClick={() => setNotesExpanded(!notesExpanded)} className="flex-shrink-0 text-amber-600 text-xs mt-0.5">
+                {notesExpanded ? '▲' : '▼'}
+              </button>
             </div>
-          </button>
+          </div>
+        )}
+        {editingWorkoutNotes && (
+          <div className="mt-1">
+            <textarea
+              value={activeWorkout.notes}
+              onChange={(e) => setActiveWorkout({ ...activeWorkout, notes: e.target.value })}
+              className="w-full bg-amber-900/20 text-amber-300 text-xs rounded-lg p-2 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-500 border border-amber-700/30 resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2 mt-0.5">
+              <button onClick={() => { setEditingWorkoutNotes(false); setNotesExpanded(true); }}
+                className="px-2 py-0.5 bg-amber-700/50 text-amber-300 rounded text-xs font-medium">Done</button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1934,16 +1963,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Undo button — top left corner, always visible but dimmed when no undo */}
+      {/* Undo button — top left, tucked into safe area */}
       {!dragState && !dragTouch && (
         <button
           onClick={handleUndo}
           disabled={undoAvailable === 0}
-          className={`fixed z-50 flex items-center justify-center w-8 h-8 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 6px)', left: '12px' }}
+          className={`fixed z-50 flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) - 6px)', left: '12px' }}
           title="Undo"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
         </button>
       )}
 
