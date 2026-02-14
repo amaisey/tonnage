@@ -99,6 +99,12 @@ function App() {
     }
   }, [activeWorkout]);
 
+  // Reset navbar scroll state when switching tabs (so navbar shows at top of new tab)
+  useEffect(() => {
+    setNavbarHiddenByScroll(false);
+    lastScrollY.current = 0;
+  }, [activeTab]);
+
   // Scroll handler for hiding/showing navbar (only applies when there's scrollable content)
   const handleScroll = useCallback((scrollY) => {
     // Don't hide navbar if we're near the top
@@ -330,8 +336,8 @@ function App() {
     { id: 'settings', icon: Icons.Settings, label: 'Settings' },
   ];
 
-  // Hide navbar only during active workout interactions (numpad, scroll) or when modals are fullscreen
-  const shouldHideNavbar = isNumpadOpen || (navbarHiddenByScroll && activeTab === 'workout') || isHistoryModalOpen || isTemplatesModalOpen;
+  // Hide navbar on scroll (any tab), numpad, or fullscreen modals
+  const shouldHideNavbar = isNumpadOpen || navbarHiddenByScroll || isHistoryModalOpen || isTemplatesModalOpen;
 
   return (
     <HistoryMigration>
@@ -356,6 +362,7 @@ function App() {
               onUpdateExercise={ex => setExercises(exercises.map(e => e.id === ex.id ? ex : e))}
               onDeleteExercise={id => setExercises(exercises.filter(e => e.id !== id))}
               onMergeExercise={handleMergeExercise}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'templates' && (
@@ -395,12 +402,14 @@ function App() {
               onAddExercises={arr => setExercises(prev => [...prev, ...arr])}
               exercises={exercises}
               onModalStateChange={setIsTemplatesModalOpen}
+              onScroll={handleScroll}
             />
           )}
           {activeTab === 'history' && (
             <HistoryScreen
               onRefreshNeeded={historyRefreshKey}
               onModalStateChange={setIsHistoryModalOpen}
+              onScroll={handleScroll}
             />
           )}
         </div>

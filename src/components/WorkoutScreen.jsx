@@ -476,16 +476,23 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     // Guard: if the candidate is LATER in phase order than the global first incomplete,
     // use the global first instead. This prevents skipping ahead when user manually
     // completes a set in a later exercise while earlier exercises are still incomplete.
+    // EXCEPTION: don't override superset round-robin — if the candidate is within
+    // the same superset as the just-completed exercise, trust the superset logic.
     const globalFirst = findGlobalFirst();
     if (candidate && globalFirst) {
-      const candidatePos = phasePos(candidate.exIndex);
-      const globalPos = phasePos(globalFirst.exIndex);
-      if (globalPos < candidatePos) {
-        return globalFirst;
-      }
-      // Same exercise but earlier set in global
-      if (globalPos === candidatePos && globalFirst.setIndex < candidate.setIndex) {
-        return globalFirst;
+      const candidateInSameSuperset = justCompleted.supersetId &&
+        exercises[candidate.exIndex]?.supersetId === justCompleted.supersetId;
+
+      if (!candidateInSameSuperset) {
+        const candidatePos = phasePos(candidate.exIndex);
+        const globalPos = phasePos(globalFirst.exIndex);
+        if (globalPos < candidatePos) {
+          return globalFirst;
+        }
+        // Same exercise but earlier set in global
+        if (globalPos === candidatePos && globalFirst.setIndex < candidate.setIndex) {
+          return globalFirst;
+        }
       }
     }
 
@@ -1445,7 +1452,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchStart={(e) => handleExerciseTouchStart(exIndex, e)}
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
-        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-4 px-4 pb-1 rounded-2xl mb-3`} transition-transform`}>
+        className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-4 px-4 pb-0 rounded-2xl mb-3`} transition-transform`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
@@ -1574,10 +1581,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         )}
 
-
         {/* Workout-specific notes — tappable to edit */}
         {editingExNotes?.exIndex === exIndex ? (
-          <div className="mb-1 px-1">
+          <div className="mb-0 px-1">
             <textarea
               value={editingExNotes.text}
               onChange={(e) => setEditingExNotes({ ...editingExNotes, text: e.target.value })}
