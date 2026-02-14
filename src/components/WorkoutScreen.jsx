@@ -1649,7 +1649,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             frozenElapsed={getFrozenElapsed(exIndex, setIndex)} />
         ))}
         <button onClick={() => addSet(exIndex)}
-          className="w-full mt-0 py-0 leading-none bg-transparent hover:bg-white/5 rounded text-teal-400/40 flex items-center justify-center gap-0.5 text-[9px]">
+          className="w-full bg-transparent hover:bg-white/5 rounded text-teal-400/40 flex items-center justify-center gap-0.5 text-[9px]"
+          style={{ marginTop: '-2px', paddingTop: '1px', paddingBottom: '1px', lineHeight: '1' }}>
           <Icons.Plus /> Set
         </button>
       </div>
