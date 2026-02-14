@@ -1453,7 +1453,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         onTouchMove={handleExerciseTouchMove}
         onTouchEnd={handleExerciseTouchEnd}
         className={`${exercise.highlight ? 'ring-2 ring-rose-500' : ''} ${dragState?.exIndex === exIndex ? 'ring-2 ring-cyan-400 opacity-75' : ''} ${dragTouch?.exIndex === exIndex ? 'opacity-50 ring-2 ring-cyan-400 scale-[1.02]' : ''} bg-white/10 backdrop-blur-md border border-white/20 ${isSuperset ? `p-3 ${isFirst ? 'rounded-t-2xl' : isLast ? 'rounded-b-2xl' : ''}` : `pt-4 px-4 pb-0 rounded-2xl mb-3`} transition-transform`}>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             {/* Bug #9/#11: Drag handle — visible for all exercises including supersets */}
             <button
@@ -1604,12 +1604,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
         ) : exercise.notes ? (
           <button onClick={() => setEditingExNotes({ exIndex, text: exercise.notes })}
-            className="mb-0.5 px-1 py-0.5 bg-amber-900/10 rounded w-full text-left hover:bg-amber-900/20">
+            className="mb-0 px-1 py-0 bg-amber-900/10 rounded w-full text-left hover:bg-amber-900/20">
             <p className="text-xs text-amber-400/70 truncate">{exercise.notes}</p>
           </button>
         ) : (
           <button onClick={() => setEditingExNotes({ exIndex, text: '' })}
-            className="mb-0.5 px-1 py-0.5 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
+            className="mb-0 px-1 py-0 text-xs text-gray-600 hover:text-amber-400/60 w-full text-left">
             + notes
           </button>
         )}

@@ -737,8 +737,8 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, hasActiveWorkout
       ? isRootLevel(f.parentId)
       : f.parentId === currentFolderId;
     return matchesParent && f.name && !hiddenFolders.includes(f.name.toLowerCase());
-  });
-  const folderTemplates = templates.filter(t => (t.folderId || 'root') === currentFolderId);
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  const folderTemplates = templates.filter(t => (t.folderId || 'root') === currentFolderId).sort((a, b) => a.name.localeCompare(b.name));
 
   const getBreadcrumbs = () => {
     const crumbs = [];
