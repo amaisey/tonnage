@@ -78,10 +78,13 @@ export async function pushToCloud(userId) {
         const cloudRow = mapToCloud(item.entityType, item.payload, userId, item.entityId)
         log.push(`cloudRow: local_id=${cloudRow.local_id}, date=${cloudRow.date}, name=${cloudRow.name?.substring(0, 20)}`)
 
+        // Exercises use (user_id, name) as unique key; everything else uses (user_id, local_id)
+        const conflictKey = item.entityType === 'exercise' ? 'user_id,name' : 'user_id,local_id'
+
         const { data, error } = await supabase
           .from(table)
           .upsert(cloudRow, {
-            onConflict: 'user_id,local_id',
+            onConflict: conflictKey,
             ignoreDuplicates: false
           })
           .select('id')
@@ -104,11 +107,15 @@ export async function pushToCloud(userId) {
       if (item.action === 'update') {
         const cloudRow = mapToCloud(item.entityType, item.payload, userId, item.entityId)
 
-        const { error } = await supabase
-          .from(table)
-          .update(cloudRow)
-          .eq('user_id', userId)
-          .eq('local_id', String(item.entityId))
+        // Exercises match on name; everything else on local_id
+        let query = supabase.from(table).update(cloudRow).eq('user_id', userId)
+        if (item.entityType === 'exercise') {
+          query = query.eq('name', item.payload.name)
+        } else {
+          query = query.eq('local_id', String(item.entityId))
+        }
+
+        const { error } = await query
 
         if (error) {
           log.push(`UPDATE ERROR: ${error.code} ${error.message}`)
@@ -118,11 +125,17 @@ export async function pushToCloud(userId) {
       }
 
       if (item.action === 'delete') {
-        const { error } = await supabase
-          .from(table)
+        // Exercises match on name; everything else on local_id
+        let query = supabase.from(table)
           .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('user_id', userId)
-          .eq('local_id', String(item.entityId))
+        if (item.entityType === 'exercise') {
+          query = query.eq('name', item.payload?.name || '')
+        } else {
+          query = query.eq('local_id', String(item.entityId))
+        }
+
+        const { error } = await query
 
         if (error) {
           log.push(`DELETE ERROR: ${error.code} ${error.message}`)

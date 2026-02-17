@@ -259,22 +259,33 @@ export const exportWorkoutJSON = (workout) => {
     date: new Date(dateMs).toISOString(),
     startTime: workout.startTime || dateMs,
     duration: workout.duration || 0,
-    exercises: workout.exercises.map(ex => ({
-      name: ex.name,
-      bodyPart: ex.bodyPart,
-      category: ex.category,
-      ...(ex.phase ? { phase: ex.phase } : {}),
-      ...(ex.restTime ? { restTime: ex.restTime } : {}),
-      ...(ex.notes ? { notes: ex.notes } : {}),
-      sets: ex.sets.filter(s => s.completed).map(s => {
+    notes: workout.notes || '',
+    estimatedTime: workout.estimatedTime || null,
+    exercises: workout.exercises.map(ex => {
+      const exercise = {
+        name: ex.name,
+        bodyPart: ex.bodyPart,
+        category: ex.category,
+      };
+      if (ex.phase) exercise.phase = ex.phase;
+      if (ex.restTime !== undefined) exercise.restTime = ex.restTime;
+      if (ex.notes) exercise.notes = ex.notes;
+      if (ex.exerciseType) exercise.exerciseType = ex.exerciseType;
+      if (ex.supersetId) exercise.supersetId = ex.supersetId;
+      if (ex.instructions) exercise.instructions = ex.instructions;
+
+      exercise.sets = ex.sets.filter(s => s.completed).map(s => {
         const set = { completed: true };
         if (s.weight !== undefined) set.weight = Number(s.weight);
         if (s.reps !== undefined) set.reps = Number(s.reps);
         if (s.duration !== undefined) set.duration = Number(s.duration);
         if (s.distance !== undefined) set.distance = Number(s.distance);
         if (s.rpe !== undefined) set.rpe = Number(s.rpe);
+        if (s.completedAt) set.completedAt = s.completedAt;
         return set;
-      })
-    }))
+      });
+
+      return exercise;
+    })
   }, null, 2);
 };

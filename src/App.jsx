@@ -368,8 +368,9 @@ function App() {
                 if (user) queueSyncEntry('exercise', ex.id, 'update', ex);
               }}
               onDeleteExercise={id => {
+                const exerciseToDelete = exercises.find(e => e.id === id);
                 setExercises(exercises.filter(e => e.id !== id));
-                if (user) queueSyncEntry('exercise', id, 'delete', {});
+                if (user) queueSyncEntry('exercise', id, 'delete', exerciseToDelete || {});
               }}
               onMergeExercise={handleMergeExercise}
               onScroll={handleScroll}
