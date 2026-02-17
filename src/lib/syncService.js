@@ -138,6 +138,18 @@ export async function pushToCloud(userId) {
       console.error('Sync push error for item:', item, err)
       errors.push({ item, error: err })
       log.push(`CAUGHT: ${err.message}`)
+
+      // Increment retry count — remove items that have failed too many times
+      // to prevent infinite queue growth
+      const retries = (item.retries || 0) + 1
+      const MAX_RETRIES = 5
+      if (retries >= MAX_RETRIES) {
+        log.push(`DROPPING item after ${MAX_RETRIES} retries: ${item.entityType}/${item.action} entityId=${item.entityId}`)
+        await db.syncQueue.delete(item.id)
+      } else {
+        await db.syncQueue.update(item.id, { retries })
+        log.push(`retry ${retries}/${MAX_RETRIES}`)
+      }
     }
   }
 
@@ -237,14 +249,14 @@ export async function pullFromCloud(userId, lastSyncedAt) {
     }
   }
 
-  // Merge exercises into localStorage
+  // Merge exercises into localStorage (dedupe by name — exercises ARE unique by name)
   pulled += mergeIntoLocalStorage('workout-exercises', exercisesData || [], 'name')
 
-  // Merge templates
-  pulled += mergeIntoLocalStorage('workout-templates', templatesData || [], 'name')
+  // Merge templates (dedupe by id — template names are NOT unique)
+  pulled += mergeIntoLocalStorage('workout-templates', templatesData || [], 'id')
 
-  // Merge folders
-  pulled += mergeIntoLocalStorage('workout-folders', foldersData || [], 'name')
+  // Merge folders (dedupe by id — folder names are NOT unique)
+  pulled += mergeIntoLocalStorage('workout-folders', foldersData || [], 'id')
 
   // Update last synced timestamp on server (best-effort, don't block on failure)
   try {
@@ -353,7 +365,7 @@ export async function mergeOnFirstLogin(userId) {
 
     const { error } = await supabase
       .from('folders')
-      .upsert(rows, { ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'user_id,local_id', ignoreDuplicates: true })
 
     if (error) console.error('Folder upload error:', error)
   }
@@ -765,8 +777,13 @@ function cloudToLocalShape(key, record) {
     }
   }
   if (key === 'workout-templates') {
+    // Coerce local_id back to number if it was originally numeric (Date.now() IDs)
+    // This preserves === equality with local template IDs
+    const rawId = record.local_id
+    const numId = Number(rawId)
+    const id = (rawId && !isNaN(numId)) ? numId : (rawId || Date.now())
     return {
-      id: record.local_id || Date.now(),
+      id,
       name: record.name,
       folderId: record.folder_id,
       estimatedTime: record.estimated_time,
@@ -775,6 +792,7 @@ function cloudToLocalShape(key, record) {
     }
   }
   if (key === 'workout-folders') {
+    // Keep folder IDs as strings (they use string prefixes like 'sbcp-folder-1')
     return {
       id: record.local_id || String(Date.now()),
       name: record.name,
