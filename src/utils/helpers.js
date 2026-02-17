@@ -253,21 +253,26 @@ export const generateTemplateSummary = (template) => {
 };
 
 export const exportWorkoutJSON = (workout) => {
+  const dateMs = workout.date || workout.startTime || Date.now();
   return JSON.stringify({
     name: workout.name,
-    date: new Date(workout.date || workout.startTime).toISOString(),
-    duration: workout.duration,
+    date: new Date(dateMs).toISOString(),
+    startTime: workout.startTime || dateMs,
+    duration: workout.duration || 0,
     exercises: workout.exercises.map(ex => ({
       name: ex.name,
       bodyPart: ex.bodyPart,
       category: ex.category,
+      ...(ex.phase ? { phase: ex.phase } : {}),
+      ...(ex.restTime ? { restTime: ex.restTime } : {}),
+      ...(ex.notes ? { notes: ex.notes } : {}),
       sets: ex.sets.filter(s => s.completed).map(s => {
-        const set = {};
-        if (s.weight !== undefined) set.weight = s.weight;
-        if (s.reps !== undefined) set.reps = s.reps;
-        if (s.duration !== undefined) set.duration = s.duration;
-        if (s.distance !== undefined) set.distance = s.distance;
-        if (s.rpe !== undefined) set.rpe = s.rpe;
+        const set = { completed: true };
+        if (s.weight !== undefined) set.weight = Number(s.weight);
+        if (s.reps !== undefined) set.reps = Number(s.reps);
+        if (s.duration !== undefined) set.duration = Number(s.duration);
+        if (s.distance !== undefined) set.distance = Number(s.distance);
+        if (s.rpe !== undefined) set.rpe = Number(s.rpe);
         return set;
       })
     }))
