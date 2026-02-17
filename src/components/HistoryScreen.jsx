@@ -385,7 +385,36 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
 
       if (importFormat === 'json') {
         const data = JSON.parse(text);
-        workoutsToImport = Array.isArray(data) ? data : (data.workouts || []);
+
+        if (Array.isArray(data)) {
+          workoutsToImport = data;
+        } else if (data.workouts) {
+          workoutsToImport = data.workouts;
+        } else if (data.name && data.exercises && Array.isArray(data.exercises)) {
+          // Single workout object — wrap in array and mark sets completed
+          workoutsToImport = [{
+            ...data,
+            exercises: (data.exercises || []).map(ex => ({
+              ...ex,
+              sets: (ex.sets || []).map(s => ({
+                ...s,
+                completed: s.completed !== undefined ? s.completed : true,
+                weight: s.weight !== undefined ? Number(s.weight) : undefined,
+                reps: s.reps !== undefined ? Number(s.reps) : undefined,
+                duration: s.duration !== undefined ? Number(s.duration) : undefined,
+                distance: s.distance !== undefined ? Number(s.distance) : undefined,
+              }))
+            }))
+          }];
+        } else {
+          throw new Error(
+            'Unrecognized JSON format. Expected one of:\n' +
+            '• A single workout: { "name": "...", "exercises": [...] }\n' +
+            '• An array of workouts: [ { ... }, ... ]\n' +
+            '• A history export: { "workouts": [...] }'
+          );
+        }
+
         // Ensure each workout has an id and proper date
         workoutsToImport = workoutsToImport.map((w, i) => ({
           ...w,
@@ -394,6 +423,15 @@ const HistoryScreen = ({ onRefreshNeeded, onScroll, navVisible, onModalStateChan
         }));
       } else {
         workoutsToImport = parseStrongCSV(text);
+      }
+
+      if (workoutsToImport.length === 0) {
+        setImportStatus({
+          message: 'No workouts found in file. Supported formats: single workout JSON, workout array, history export, or Strong CSV.',
+          error: true
+        });
+        setImporting(false);
+        return;
       }
 
       if (replace) {
