@@ -1256,7 +1256,7 @@ const ExerciseDetailModal = ({ exercise, history, onEdit, onMerge, onDelete, onC
                   onClick={() => onUpdateNotes ? setEditingNotes(true) : null}
                   className={`text-left w-full ${onUpdateNotes ? 'cursor-pointer hover:bg-white/5 rounded-lg -m-1 p-1' : ''}`}
                 >
-                  <p className="text-white/80 text-sm">
+                  <p className="text-white/80 text-sm" style={{ whiteSpace: 'pre-line' }}>
                     {exercise.notes || exercise.instructions || (onUpdateNotes ? "Tap to add notes for this exercise." : "No instructions added yet. Go to Exercises to add instructions.")}
                   </p>
                 </button>

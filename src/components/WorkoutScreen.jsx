@@ -434,6 +434,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         scrollToNextIncomplete();
+        // Clear any lingering rest-timer notifications when user returns to app
+        if ('Notification' in window && navigator.serviceWorker?.ready) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.getNotifications({ tag: 'rest-timer' }).then(notifs => notifs.forEach(n => n.close()));
+          }).catch(() => {});
+        }
       }
     };
 
@@ -451,21 +457,10 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
       const remaining = Math.max(0, restTimer.totalTime - elapsed);
       if (remaining === 0) {
-        // Play alarm sound and vibrate
+        // Play alarm sound and vibrate (the setTimeout handler covers the background notification)
         playRestTimerAlarm();
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 300]);
-        }
-        // Fire notification if app is in background
-        if (document.hidden && 'Notification' in window && notificationPermission.current === 'granted') {
-          try {
-            new Notification('Rest Complete', {
-              body: `Time to start your next set`,
-              icon: '/icons/icon-192.png',
-              tag: 'rest-timer',
-              requireInteraction: false,
-            });
-          } catch (e) {}
         }
         if (restTimerTimeoutRef.current) { clearTimeout(restTimerTimeoutRef.current); restTimerTimeoutRef.current = null; }
         setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
@@ -500,10 +495,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
               icon: '/icons/icon-192.png',
               tag: 'rest-timer', // Replace previous notification
               requireInteraction: false,
+              silent: false, // Explicitly request sound
             });
           } catch (e) {
             // Safari may throw if notification fails
           }
+          // Also try to play alarm sound from background
+          playRestTimerAlarm();
         }
       }, time * 1000);
     }
@@ -1392,11 +1390,12 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Bug #5: Link exercise with the next one as a superset — zero non-last rest timers
-  const linkWithNext = (exIndex) => {
-    if (exIndex >= activeWorkout.exercises.length - 1) return;
+  const linkWithNext = (exIndex, nextExIndex) => {
+    const targetNextIdx = nextExIndex !== undefined ? nextExIndex : exIndex + 1;
+    if (targetNextIdx >= activeWorkout.exercises.length) return;
     const updated = { ...activeWorkout };
     const currentEx = updated.exercises[exIndex];
-    const nextEx = updated.exercises[exIndex + 1];
+    const nextEx = updated.exercises[targetNextIdx];
 
     const supersetId = currentEx.supersetId || nextEx.supersetId || `superset-${Date.now()}`;
     currentEx.supersetId = supersetId;
@@ -1586,7 +1585,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
   const restTimePresets = [30, 45, 60, 90, 120, 180, 300];
 
-  const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true, supersetColorDot = null) => {
+  const renderExerciseCard = (exercise, exIndex, isSuperset = false, isFirst = true, isLast = true, supersetColorDot = null, nextExIndexInPhase = null) => {
     const exerciseRestTime = exercise.restTime ?? 60;
     const typeInfo = exercise.exerciseType ? EXERCISE_TYPES[exercise.exerciseType] : null;
     const phaseInfo = exercise.phase && exercise.phase !== 'workout' ? EXERCISE_PHASES[exercise.phase] : null;
@@ -1705,17 +1704,22 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             <button onClick={() => setEditingRestTime(editingRestTime === exIndex ? null : exIndex)} className="text-xs text-gray-400 px-2 py-1 rounded hover:bg-white/10">
               ⏱️ {formatDuration(exerciseRestTime)}
             </button>
-            {/* Link button - show if the immediately next exercise is in the same phase and linkable */}
+            {/* Link button - show if there's a next exercise in the same phase that can be linked */}
             {(() => {
+              // Use phase-aware next index if available, fall back to raw array index
+              const nextIdx = nextExIndexInPhase !== null ? nextExIndexInPhase : exIndex + 1;
+              const nextEx = activeWorkout.exercises[nextIdx];
+              if (!nextEx) return false; // No next exercise
               const currentPhase = exercise.phase || 'workout';
-              const nextEx = activeWorkout.exercises[exIndex + 1];
-              if (!nextEx) return false; // Last exercise overall
-              if ((nextEx.phase || 'workout') !== currentPhase) return false; // Next exercise is in a different phase
-              if (!isSuperset && !isLast) return false; // In a superset but not the last — can't link further
+              if ((nextEx.phase || 'workout') !== currentPhase) return false; // Different phase
+              if (!isSuperset && !isLast) return false; // In a superset but not the last
               return (!isSuperset || isLast); // Show if standalone or last in its superset
             })() && (
               <button
-                onClick={() => linkWithNext(exIndex)}
+                onClick={() => {
+                  const nextIdx = nextExIndexInPhase !== null ? nextExIndexInPhase : exIndex + 1;
+                  linkWithNext(exIndex, nextIdx);
+                }}
                 className="text-teal-400 hover:text-teal-300 p-1 hover:bg-white/10 rounded"
                 title="Link with next exercise"
               >
@@ -1842,7 +1846,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   // Helper to render a group (superset or single)
-  const renderGroup = (group, groupIdx) => {
+  // nextGroupFirstIndex: the raw array index of the first exercise in the next group (for link button)
+  const renderGroup = (group, groupIdx, nextGroupFirstIndex = null) => {
     if (group.type === 'superset') {
       const color = getSupersetColor(group.supersetId);
       return (
@@ -1853,13 +1858,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           </div>
           <div className={`border-l-4 ${color.border} rounded-2xl overflow-hidden`}>
             {group.exercises.map(({ exercise, index }, i) =>
-              renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1, color.dot)
+              renderExerciseCard(exercise, index, true, i === 0, i === group.exercises.length - 1, color.dot,
+                i === group.exercises.length - 1 ? nextGroupFirstIndex : null)
             )}
           </div>
         </div>
       );
     } else {
-      return renderExerciseCard(group.exercise, group.index, false);
+      return renderExerciseCard(group.exercise, group.index, false, true, true, null, nextGroupFirstIndex);
     }
   };
 
@@ -1918,7 +1924,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
       <div className="px-4 pt-0 pb-1 border-b border-white/10 bg-white/5 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0 text-center pl-6">
+          <div className="flex-1 min-w-0 text-center" style={{ paddingLeft: undoAvailable > 0 ? (redoAvailable > 0 ? '4rem' : '2.5rem') : '1.5rem' }}>
             <input type="text" value={activeWorkout.name} onChange={e => setActiveWorkout({ ...activeWorkout, name: e.target.value })}
               className="text-lg font-bold text-white bg-transparent border-none focus:outline-none w-full text-center truncate" />
             {/* Bug #15: Pace tracking display */}
@@ -2043,7 +2049,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
 
                 {!isCollapsed && (
                   <div className={`border-l-4 ${phaseInfo.borderColor} pl-3`}>
-                    {groups.map((group, idx) => renderGroup(group, idx))}
+                    {groups.map((group, idx) => {
+                      const nextGroup = groups[idx + 1];
+                      const nextFirstIdx = nextGroup ? (nextGroup.type === 'superset' ? nextGroup.exercises[0]?.index : nextGroup.index) : null;
+                      return renderGroup(group, idx, nextFirstIdx);
+                    })}
                     {/* Bug #11: Drop zone at end of phase when dragging */}
                     {dragState && (
                       <button
@@ -2074,7 +2084,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           })
         ) : (
           // Render without phases (flat list with superset grouping)
-          Object.values(groupedByPhase).flat().map((group, idx) => renderGroup(group, idx))
+          (() => {
+            const allGroups = Object.values(groupedByPhase).flat();
+            return allGroups.map((group, idx) => {
+              const nextGroup = allGroups[idx + 1];
+              const nextFirstIdx = nextGroup ? (nextGroup.type === 'superset' ? nextGroup.exercises[0]?.index : nextGroup.index) : null;
+              return renderGroup(group, idx, nextFirstIdx);
+            });
+          })()
         )}
         {/* Bottom add exercise - only show when no phases (flat list) */}
         {!showPhases && (
@@ -2122,25 +2139,25 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Undo / Redo buttons — top left, tucked into safe area */}
-      {!dragState && !dragTouch && (
+      {/* Undo / Redo buttons — top left, tucked into safe area. Only show when undo is available. */}
+      {!dragState && !dragTouch && undoAvailable > 0 && (
         <div className="fixed z-50 flex items-center gap-1" style={{ top: 'calc(env(safe-area-inset-top, 0px) - 6px)', left: '12px' }}>
           <button
             onClick={handleUndo}
-            disabled={undoAvailable === 0}
-            className={`flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
+            className="flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35"
             title="Undo"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
           </button>
-          <button
-            onClick={handleRedo}
-            disabled={redoAvailable === 0}
-            className={`flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${redoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
-            title="Redo"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4" /></svg>
-          </button>
+          {redoAvailable > 0 && (
+            <button
+              onClick={handleRedo}
+              className="flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35"
+              title="Redo"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4" /></svg>
+            </button>
+          )}
         </div>
       )}
 

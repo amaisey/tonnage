@@ -169,7 +169,7 @@ const WorkoutDetailModal = ({ workout, onClose, onDelete }) => {
                           )}
                         </div>
                         {exercise.instructions && (
-                          <div className="text-xs text-blue-400/70 mb-2 italic">💡 {exercise.instructions}</div>
+                          <div className="text-xs text-blue-400/70 mb-2 italic" style={{ whiteSpace: 'pre-line' }}>💡 {exercise.instructions}</div>
                         )}
 
                         {/* Set details - filter out rest periods (sets with only duration, no reps/weight) */}
