@@ -35,7 +35,9 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const [expandedExNotes, setExpandedExNotes] = useState(null); // exIndex of expanded notes
   const [editingWorkoutNotes, setEditingWorkoutNotes] = useState(false); // editing overall workout notes
   const undoStackRef = useRef([]); // Stack of previous workout states for undo
+  const redoStackRef = useRef([]); // Stack of states for redo
   const [undoAvailable, setUndoAvailable] = useState(0); // Number of undo steps available
+  const [redoAvailable, setRedoAvailable] = useState(0); // Number of redo steps available
   const longPressTimerRef = useRef(null);
   const dragRefs = useRef({}); // refs for each exercise row
   const intervalRef = useRef(null);
@@ -46,6 +48,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const audioContextRef = useRef(null);
   const audioInitialized = useRef(false);
   const alarmAudioRef = useRef(null);  // HTML5 Audio fallback for iOS
+  const notificationPermission = useRef(Notification?.permission || 'default');
+  const restTimerTimeoutRef = useRef(null); // setTimeout for background notification
   const scrollToNextRef = useRef(false); // Flag: scroll to next set after green bar tap
   const greenBarSwipeRef = useRef(null); // Track green bar swipe start position
 
@@ -63,10 +67,21 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       undoStackRef.current.shift(); // Remove oldest
     }
     setUndoAvailable(undoStackRef.current.length);
+    // Clear redo stack on any new action (standard undo/redo behavior)
+    redoStackRef.current = [];
+    setRedoAvailable(0);
   };
 
   const handleUndo = () => {
     if (undoStackRef.current.length === 0) return;
+    // Push current state to redo stack before restoring
+    const currentSnapshot = JSON.parse(JSON.stringify(activeWorkout));
+    redoStackRef.current.push({
+      workout: currentSnapshot,
+      expectedNext: expectedNext ? { ...expectedNext } : null,
+      lastCompletionTimestamp,
+    });
+    setRedoAvailable(redoStackRef.current.length);
     const prev = undoStackRef.current.pop();
     setActiveWorkout(prev.workout);
     setExpectedNext(prev.expectedNext);
@@ -80,11 +95,29 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     if (navigator.vibrate) navigator.vibrate(20);
   };
 
+  const handleRedo = () => {
+    if (redoStackRef.current.length === 0) return;
+    // Push current state to undo stack before restoring
+    const currentSnapshot = JSON.parse(JSON.stringify(activeWorkout));
+    undoStackRef.current.push({
+      workout: currentSnapshot,
+      expectedNext: expectedNext ? { ...expectedNext } : null,
+      lastCompletionTimestamp,
+    });
+    setUndoAvailable(undoStackRef.current.length);
+    const next = redoStackRef.current.pop();
+    setActiveWorkout(next.workout);
+    setExpectedNext(next.expectedNext);
+    setLastCompletionTimestamp(next.lastCompletionTimestamp);
+    setRedoAvailable(redoStackRef.current.length);
+    if (navigator.vibrate) navigator.vibrate(20);
+  };
+
   // Initialize audio context on first user interaction
-  // iOS audio unlock — must create/resume AudioContext AND play a buffer
-  // all within the same user gesture. Keep retrying until it actually works.
-  // Also pre-load an HTML5 Audio element as fallback for when AudioContext
-  // gets suspended (iOS suspends it on screen lock / app switch).
+  // iOS audio unlock — must create/resume AudioContext AND play a silent buffer
+  // all within the same user gesture. IMPORTANT: Do NOT use HTML5 Audio.play()
+  // during init — iOS treats it as media playback and pauses background music.
+  // We only use HTML5 Audio as a last-resort fallback when AudioContext is suspended.
   const initAudio = async () => {
     try {
       if (!audioContextRef.current) {
@@ -94,7 +127,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       if (ctx.state === 'suspended') {
         await ctx.resume();
       }
-      // Play a silent buffer to fully unlock iOS audio pipeline
+      // Play a truly silent buffer to unlock iOS audio pipeline
+      // This uses the "ambient" audio path and won't pause background music
       const silentBuffer = ctx.createBuffer(1, 1, 22050);
       const source = ctx.createBufferSource();
       source.buffer = silentBuffer;
@@ -102,14 +136,20 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       source.start(0);
       audioInitialized.current = true;
 
-      // Pre-load HTML5 Audio fallback (survives iOS AudioContext suspension)
+      // Pre-load HTML5 Audio fallback (but do NOT play it — that pauses music)
+      // It will only be used when AudioContext is suspended (screen lock/app switch)
       if (!alarmAudioRef.current) {
         const audio = new Audio('/sounds/timer-complete.wav');
         audio.preload = 'auto';
         audio.volume = 0.5;
-        // iOS requires a play() during user gesture to unlock HTML5 Audio too
-        audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
         alarmAudioRef.current = audio;
+      }
+
+      // Request notification permission for background rest timer alerts
+      if ('Notification' in window && notificationPermission.current === 'default') {
+        Notification.requestPermission().then(perm => {
+          notificationPermission.current = perm;
+        });
       }
     } catch (e) {
       console.log('Audio init failed:', e);
@@ -277,23 +317,29 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     });
   }, [activeWorkout]);
 
-  // Auto-scroll to next set when green bar triggers a completion
-  // Position the exercise card about 30% from top of viewport (20% above center)
+  // Auto-scroll: put the next incomplete exercise title near the top of the viewport.
+  // Triggers after set completion, exercise replace, exercise reorder, green bar tap.
+  const scrollToExpectedNext = useRef(false); // Broader flag (not just green bar)
   useEffect(() => {
-    if (scrollToNextRef.current && expectedNext) {
-      scrollToNextRef.current = false;
-      setTimeout(() => {
-        const el = dragRefs.current[expectedNext.exIndex];
-        const container = scrollContainerRef.current;
-        if (el && container) {
-          const elRect = el.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          const targetOffset = containerRect.height * 0.30; // 30% from top
-          const scrollDelta = elRect.top - containerRect.top - targetOffset;
+    if (!expectedNext) return;
+    if (!scrollToNextRef.current && !scrollToExpectedNext.current) return;
+    scrollToNextRef.current = false;
+    scrollToExpectedNext.current = false;
+    setTimeout(() => {
+      const el = dragRefs.current[expectedNext.exIndex];
+      const container = scrollContainerRef.current;
+      if (el && container) {
+        const elRect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        // Place the exercise title ~8% from top (just below the header area)
+        const targetOffset = containerRect.height * 0.08;
+        const scrollDelta = elRect.top - containerRect.top - targetOffset;
+        // Only scroll if the element is more than 30% off-screen or below midpoint
+        if (Math.abs(scrollDelta) > containerRect.height * 0.15) {
           container.scrollBy({ top: scrollDelta, behavior: 'smooth' });
         }
-      }, 50);
-    }
+      }
+    }, 80);
   }, [expectedNext]);
 
   // Notify parent when numpad state changes
@@ -410,6 +456,18 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 300]);
         }
+        // Fire notification if app is in background
+        if (document.hidden && 'Notification' in window && notificationPermission.current === 'granted') {
+          try {
+            new Notification('Rest Complete', {
+              body: `Time to start your next set`,
+              icon: '/icons/icon-192.png',
+              tag: 'rest-timer',
+              requireInteraction: false,
+            });
+          } catch (e) {}
+        }
+        if (restTimerTimeoutRef.current) { clearTimeout(restTimerTimeoutRef.current); restTimerTimeoutRef.current = null; }
         setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
         return;
       }
@@ -425,8 +483,30 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     const time = restTime ?? 60; // Bug #16: Use ?? so restTime=0 is preserved (|| treats 0 as falsy)
     if (time <= 0) return; // Don't start timer for 0-rest exercises (supersets)
     // Use provided timestamp to stay in sync with lastCompletionTimestamp
-    setRestTimer({ active: true, time, totalTime: time, startedAt: timestamp || Date.now(), exerciseName, exIndex: exIdx ?? null });
+    const startedAt = timestamp || Date.now();
+    setRestTimer({ active: true, time, totalTime: time, startedAt, exerciseName, exIndex: exIdx ?? null });
     setRestTimerMinimized(false); // Bug #6: auto-show when new timer starts
+
+    // Schedule a background notification in case user switches apps
+    // clearTimeout first to avoid stacking from rapid completions
+    if (restTimerTimeoutRef.current) clearTimeout(restTimerTimeoutRef.current);
+    if ('Notification' in window && notificationPermission.current === 'granted') {
+      restTimerTimeoutRef.current = setTimeout(() => {
+        // Only fire if document is hidden (user is in another app)
+        if (document.hidden) {
+          try {
+            new Notification('Rest Complete', {
+              body: `Time to start ${exerciseName}`,
+              icon: '/icons/icon-192.png',
+              tag: 'rest-timer', // Replace previous notification
+              requireInteraction: false,
+            });
+          } catch (e) {
+            // Safari may throw if notification fails
+          }
+        }
+      }, time * 1000);
+    }
   };
 
   // Returns exercise indices in visual display order (warmup → workout → cooldown).
@@ -956,6 +1036,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const newExpected = calculateNextExpected(exIndex, setIndex);
       setExpectedNext(newExpected);
       setLastCompletionTimestamp(now);
+      scrollToExpectedNext.current = true; // Auto-scroll to next exercise
 
       // Bug #17/#18: Set a live timer anchor for the new expected set.
       // Using a negative timestamp (convention: negative = live anchor) ensures
@@ -1260,6 +1341,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     };
     setActiveWorkout(updated);
     setReplaceExerciseIndex(null);
+    scrollToExpectedNext.current = true;
   };
 
   // Bug #5: Unlink restores original rest time
@@ -1337,6 +1419,30 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     });
 
     setActiveWorkout(updated);
+
+    // Recalculate expectedNext for superset round-robin order
+    // After linking, the next incomplete set should follow superset logic
+    if (expectedNext) {
+      const ex = updated.exercises[expectedNext.exIndex];
+      if (ex?.supersetId === supersetId) {
+        // Current expectedNext is in this superset — recalculate using round-robin
+        let bestCandidate = null;
+        let bestSetIndex = Infinity;
+        let bestExPos = Infinity;
+        supersetExercises.forEach(({ ex: ssEx, idx }, posInSuperset) => {
+          ssEx.sets.forEach((s, sIdx) => {
+            if (!s.completed) {
+              if (sIdx < bestSetIndex || (sIdx === bestSetIndex && posInSuperset < bestExPos)) {
+                bestCandidate = { exIndex: idx, setIndex: sIdx };
+                bestSetIndex = sIdx;
+                bestExPos = posInSuperset;
+              }
+            }
+          });
+        });
+        if (bestCandidate) setExpectedNext(bestCandidate);
+      }
+    }
   };
 
   // Group exercises by phase, then by superset within each phase
@@ -2016,17 +2122,26 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         </button>
       )}
 
-      {/* Undo button — top left, tucked into safe area */}
+      {/* Undo / Redo buttons — top left, tucked into safe area */}
       {!dragState && !dragTouch && (
-        <button
-          onClick={handleUndo}
-          disabled={undoAvailable === 0}
-          className={`fixed z-50 flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) - 6px)', left: '12px' }}
-          title="Undo"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
-        </button>
+        <div className="fixed z-50 flex items-center gap-1" style={{ top: 'calc(env(safe-area-inset-top, 0px) - 6px)', left: '12px' }}>
+          <button
+            onClick={handleUndo}
+            disabled={undoAvailable === 0}
+            className={`flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${undoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
+            title="Undo"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={redoAvailable === 0}
+            className={`flex items-center justify-center w-7 h-7 rounded-full backdrop-blur-sm border transition-all ${redoAvailable > 0 ? 'bg-white/15 border-white/30 text-white hover:bg-white/25 active:bg-white/35' : 'bg-white/5 border-white/10 text-gray-600'}`}
+            title="Redo"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4" /></svg>
+          </button>
+        </div>
       )}
 
       {/* Cancel Confirmation Modal */}
