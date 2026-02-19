@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/((?!api|_next|sw\\.js|manifest\\.json|icon-.*|sounds|backgrounds|version\\.json).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/sw.js",
