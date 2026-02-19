@@ -30,6 +30,7 @@ function mapToCloud(entityType, payload, userId, localId) {
         name: payload.name,
         body_part: payload.bodyPart || payload.body_part || 'Other',
         category: payload.category || 'other',
+        instructions: payload.instructions || '',
       }
     case 'template':
       return {
@@ -796,6 +797,7 @@ function cloudToLocalShape(key, record) {
       name: record.name,
       bodyPart: record.body_part,
       category: record.category,
+      instructions: record.instructions || '',
     }
   }
   if (key === 'workout-templates') {

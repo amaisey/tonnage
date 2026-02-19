@@ -198,44 +198,58 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   };
 
   const playRestTimerAlarm = async () => {
-    await initAudio();
-    const ctx = audioContextRef.current;
+    let soundPlayed = false;
 
-    // Try Web Audio API first (better quality, multiple tones)
-    if (ctx && ctx.state === 'running') {
+    // Try to resume AudioContext (may work if page is still visible)
+    const ctx = audioContextRef.current;
+    if (ctx) {
       try {
-        // Three ascending tones
-        [0, 0.2, 0.4].forEach((delay, i) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = 660 + (i * 220);
-          osc.type = 'sine';
-          gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.3);
-          osc.start(ctx.currentTime + delay);
-          osc.stop(ctx.currentTime + delay + 0.3);
-        });
-        return; // Success — skip fallback
-      } catch (e) {
-        console.log('Web Audio alarm failed, trying fallback:', e);
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch (e) { /* resume failed, that's ok */ }
+
+      // Try Web Audio API first (better quality, multiple tones)
+      if (ctx.state === 'running') {
+        try {
+          [0, 0.2, 0.4].forEach((delay, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 660 + (i * 220);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.5, ctx.currentTime + delay);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.3);
+            osc.start(ctx.currentTime + delay);
+            osc.stop(ctx.currentTime + delay + 0.3);
+          });
+          soundPlayed = true;
+        } catch (e) {
+          console.log('Web Audio alarm failed:', e);
+        }
       }
     }
 
-    // Fallback: HTML5 Audio (works when AudioContext is suspended by iOS)
-    try {
-      if (alarmAudioRef.current) {
-        alarmAudioRef.current.currentTime = 0;
-        await alarmAudioRef.current.play();
-      } else {
-        // Last resort: create and play immediately
-        const audio = new Audio('/sounds/timer-complete.wav');
-        audio.volume = 0.5;
-        await audio.play();
+    // Fallback: HTML5 Audio (works on some platforms when AudioContext is suspended)
+    if (!soundPlayed) {
+      try {
+        if (alarmAudioRef.current) {
+          alarmAudioRef.current.currentTime = 0;
+          await alarmAudioRef.current.play();
+          soundPlayed = true;
+        } else {
+          const audio = new Audio('/sounds/timer-complete.wav');
+          audio.volume = 0.5;
+          await audio.play();
+          soundPlayed = true;
+        }
+      } catch (e) {
+        console.log('HTML5 Audio alarm also failed:', e);
       }
-    } catch (e) {
-      console.log('HTML5 Audio alarm also failed:', e);
+    }
+
+    // Always vibrate as tactile feedback (works even when sound fails)
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200, 100, 300]);
     }
   };
 
@@ -457,11 +471,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       const elapsed = Math.floor((Date.now() - restTimer.startedAt) / 1000);
       const remaining = Math.max(0, restTimer.totalTime - elapsed);
       if (remaining === 0) {
-        // Play alarm sound and vibrate (the setTimeout handler covers the background notification)
+        // Play alarm sound and vibrate (vibration is handled inside playRestTimerAlarm)
         playRestTimerAlarm();
-        if (navigator.vibrate) {
-          navigator.vibrate([200, 100, 200, 100, 300]);
-        }
         if (restTimerTimeoutRef.current) { clearTimeout(restTimerTimeoutRef.current); restTimerTimeoutRef.current = null; }
         setRestTimer(prev => ({ ...prev, active: false, time: 0 }));
         return;
