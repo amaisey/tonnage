@@ -49,7 +49,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   const audioContextRef = useRef(null);
   const audioInitialized = useRef(false);
   const alarmAudioRef = useRef(null);  // HTML5 Audio fallback for iOS
-  const notificationPermission = useRef(Notification?.permission || 'default');
+  const notificationPermission = useRef(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const restTimerTimeoutRef = useRef(null); // setTimeout for background notification
   const scrollToNextRef = useRef(false); // Flag: scroll to next set after green bar tap
   const greenBarSwipeRef = useRef(null); // Track green bar swipe start position
