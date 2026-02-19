@@ -79,7 +79,7 @@ export const generateStravaDescription = (workout) => {
 };
 
 // Generate a blank AI boilerplate that teaches an AI how to create Tonnage templates
-export const generateTemplateAIBoilerplate = () => {
+export const generateTemplateAIBoilerplate = (exerciseLibrary) => {
   return `# Tonnage Workout Template Format
 
 You are helping create a workout template for the Tonnage app. Return ONLY a valid JSON object (no markdown, no code fences).
@@ -129,6 +129,13 @@ Example:
 
 ## Import
 To import into Tonnage: Templates tab → Import button (top-right) → paste JSON → Import.
+
+## IMPORTANT: Reuse Existing Exercises
+ALWAYS use the exact exercise name (case-sensitive) from the user's existing library to avoid creating duplicates. If the user provides their exercise list, prefer those exact names over inventing new ones.
+${exerciseLibrary?.length ? `
+## User's Exercise Library (use these exact names)
+${exerciseLibrary.map(e => `- ${e.name} (${e.bodyPart}, ${e.category})`).join('\n')}
+` : ''}
 `;
 };
 

@@ -132,10 +132,10 @@ function App() {
   // Start a workout from a template (blocked if one is already active)
   const startTemplate = useCallback(async (template) => {
     if (activeWorkout) return; // Guard: don't overwrite an active workout
-    // Bug #4: Auto-add template exercises not in library
-    const exerciseNames = new Set(exercises.map(e => e.name));
+    // Bug #4: Auto-add template exercises not in library (case-insensitive)
+    const exerciseNamesLower = new Set(exercises.map(e => e.name.toLowerCase()));
     const newExercises = template.exercises
-      .filter(ex => !exerciseNames.has(ex.name))
+      .filter(ex => !exerciseNamesLower.has(ex.name.toLowerCase()))
       .map((ex, i) => ({
         id: Date.now() + i,
         name: ex.name,

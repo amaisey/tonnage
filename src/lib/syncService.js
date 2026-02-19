@@ -679,14 +679,18 @@ export async function directPushWorkout(userId, workoutData, localId) {
 
   try {
     const cloudRow = mapToCloud('workout', workoutData, userId, localId)
-    const { data, error } = await supabase
-      .from('workouts')
-      .upsert(cloudRow, {
-        onConflict: 'user_id,local_id',
-        ignoreDuplicates: false
-      })
-      .select('id')
-      .single()
+    // Add timeout to prevent hanging (matches PUSH_TIMEOUT_MS used by queue)
+    const { data, error } = await Promise.race([
+      supabase
+        .from('workouts')
+        .upsert(cloudRow, {
+          onConflict: 'user_id,local_id',
+          ignoreDuplicates: false
+        })
+        .select('id')
+        .single(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Direct push timeout')), PUSH_TIMEOUT_MS))
+    ])
 
     if (error) {
       console.error('Direct push error:', error)
@@ -722,11 +726,14 @@ export async function directDeleteWorkout(userId, localId) {
   }
 
   try {
-    const { error } = await supabase
-      .from('workouts')
-      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('local_id', String(localId))
+    const { error } = await Promise.race([
+      supabase
+        .from('workouts')
+        .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('local_id', String(localId)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Direct delete timeout')), PUSH_TIMEOUT_MS))
+    ])
 
     if (error) {
       console.error('Direct delete error:', error)

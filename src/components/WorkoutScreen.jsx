@@ -30,6 +30,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   // Bug #9: Touch drag-to-reorder state
   const [dragTouch, setDragTouch] = useState(null); // { exIndex, startY, currentY, insertBefore }
   const [completionFlash, setCompletionFlash] = useState(false); // Green bar expand animation
+  const [overallElapsed, setOverallElapsed] = useState(0); // Overall workout elapsed minutes
   const [notesExpanded, setNotesExpanded] = useState(false); // Collapsible workout notes
   const [editingExNotes, setEditingExNotes] = useState(null); // { exIndex, text } - inline exercise notes editing
   const [expandedExNotes, setExpandedExNotes] = useState(null); // exIndex of expanded notes
@@ -229,8 +230,11 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       }
     }
 
-    // Fallback: HTML5 Audio (works on some platforms when AudioContext is suspended)
-    if (!soundPlayed) {
+    // Fallback: HTML5 Audio — ONLY when page is visible (foreground).
+    // iOS treats Audio.play() as media playback which pauses background music.
+    // If the page is hidden (user switched apps), skip this fallback entirely —
+    // the vibration + notification are the only background feedback we can give.
+    if (!soundPlayed && !document.hidden) {
       try {
         if (alarmAudioRef.current) {
           alarmAudioRef.current.currentTime = 0;
@@ -252,6 +256,15 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       navigator.vibrate([200, 100, 200, 100, 300]);
     }
   };
+
+  // Overall workout elapsed timer — ticks every second so the header stays updated
+  useEffect(() => {
+    if (!activeWorkout?.startTime) return;
+    const tick = () => setOverallElapsed(Math.floor((Date.now() - activeWorkout.startTime) / 60000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [activeWorkout?.startTime]);
 
   // Bug #1: Seed timer state when workout starts so the first set shows elapsed time
   useEffect(() => {
@@ -500,19 +513,31 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       restTimerTimeoutRef.current = setTimeout(() => {
         // Only fire if document is hidden (user is in another app)
         if (document.hidden) {
-          try {
-            new Notification('Rest Complete', {
-              body: `Time to start ${exerciseName}`,
-              icon: '/icons/icon-192.png',
-              tag: 'rest-timer', // Replace previous notification
-              requireInteraction: false,
-              silent: false, // Explicitly request sound
+          // Use Service Worker showNotification so it's clearable via getNotifications()
+          if (navigator.serviceWorker?.ready) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification('Rest Complete', {
+                body: `Time to start ${exerciseName}`,
+                icon: '/icons/icon-192.png',
+                tag: 'rest-timer',
+                requireInteraction: false,
+                silent: false,
+              });
+            }).catch(() => {
+              // Fallback to regular Notification if SW unavailable
+              try {
+                new Notification('Rest Complete', {
+                  body: `Time to start ${exerciseName}`,
+                  icon: '/icons/icon-192.png',
+                  tag: 'rest-timer',
+                });
+              } catch (e) { /* Safari may throw */ }
             });
-          } catch (e) {
-            // Safari may throw if notification fails
           }
-          // Also try to play alarm sound from background
-          playRestTimerAlarm();
+          // Do NOT call playRestTimerAlarm() here — it fires stale when user returns
+          // and causes music to pause. The foreground timer tick handles the alarm
+          // when remaining === 0 (line ~473 above). Vibrate only as background feedback.
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 300]);
         }
       }, time * 1000);
     }
@@ -1954,7 +1979,7 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
                   </div>
                 );
               }
-              return <div className="text-sm text-gray-400 text-center">{Math.floor((Date.now() - activeWorkout.startTime) / 60000)} min elapsed</div>;
+              return <div className="text-sm text-gray-400 text-center">{overallElapsed} min elapsed</div>;
             })()}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -2286,10 +2311,13 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
         />
       )}
 
-      {/* Exercise Detail Modal */}
+      {/* Exercise Detail Modal — merge current library instructions so updated descriptions show */}
       {showExerciseDetailModal && (
         <ExerciseDetailModal
-          exercise={showExerciseDetailModal}
+          exercise={{
+            ...showExerciseDetailModal,
+            instructions: (exercises.find(e => e.name === showExerciseDetailModal.name)?.instructions) || showExerciseDetailModal.instructions || '',
+          }}
           history={exerciseDetailHistory}
           onEdit={() => {
             setExerciseDetail(showExerciseDetailModal);

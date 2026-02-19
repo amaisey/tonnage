@@ -657,7 +657,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, hasActiveWorkout
 
   const copyAIBoilerplate = async () => {
     try {
-      await navigator.clipboard.writeText(generateTemplateAIBoilerplate());
+      await navigator.clipboard.writeText(generateTemplateAIBoilerplate(exercises));
       setAiBoilerplateCopied(true);
       setTimeout(() => setAiBoilerplateCopied(false), 2000);
     } catch (err) {

@@ -330,7 +330,12 @@ const SetInputRow = ({ set, setIndex, category, onUpdate, onComplete, onRemove, 
           const elementRect = element.getBoundingClientRect();
           const containerRect = container.getBoundingClientRect();
           const scrollTop = container.scrollTop;
-          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - 120;
+          // Dynamically measure numpad height instead of hardcoded 120px
+          const numpad = document.querySelector('.fixed.inset-x-0.bottom-0.bg-gray-900.border-t');
+          const numpadHeight = numpad ? numpad.getBoundingClientRect().height : 280;
+          // Position the row in the visible area above the numpad with 20px breathing room
+          const visibleHeight = containerRect.height - numpadHeight;
+          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - Math.min(visibleHeight * 0.4, 160);
           container.scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
         }
       }, 50);
@@ -553,7 +558,7 @@ const ExerciseSearchModal = ({ exercises, onSelect, onSelectMultiple, onClose, a
     const matchesBodyPart = selectedBodyPart === 'All' || ex.bodyPart === selectedBodyPart;
     const matchesCategory = selectedCategory === 'All' || ex.category === selectedCategory;
     return matchesSearch && matchesBodyPart && matchesCategory;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const toggleExercise = (ex) => {
     if (selectedExercises.find(e => e.id === ex.id)) {
