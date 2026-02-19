@@ -22,7 +22,7 @@ export const getDefaultSetForCategory = (category) => {
 export const generateStravaDescription = (workout) => {
   const duration = Math.round(workout.duration / 60000);
   const totalSets = workout.exercises.reduce((acc, ex) => acc + ex.sets.filter(s => s.completed).length, 0);
-  let description = `💪 ${workout.name}\n⏱️ ${duration} min | ${totalSets} sets\n\n`;
+  let description = `💪 ${workout.name}\n⏱️ ${duration} min | ${totalSets} sets\n`;
 
   const formatSets = (completedSets) => {
     return completedSets.map(s => {
@@ -35,17 +35,25 @@ export const generateStravaDescription = (workout) => {
     }).join(', ');
   };
 
+  // Process exercises in phase order (warmup → workout → cooldown), matching UI display
+  const phases = { warmup: [], workout: [], cooldown: [] };
+  workout.exercises.forEach((ex, i) => {
+    const phase = ex.phase || 'workout';
+    phases[phase].push({ ex, i });
+  });
+  const orderedExercises = [...phases.warmup, ...phases.workout, ...phases.cooldown];
+
   // Group by superset for display
   const used = new Set();
-  workout.exercises.forEach((ex, i) => {
+  orderedExercises.forEach(({ ex, i }) => {
     if (used.has(i)) return;
     const completedSets = ex.sets.filter(s => s.completed);
     if (completedSets.length === 0) { used.add(i); return; }
 
     if (ex.supersetId) {
-      // Gather all superset exercises
+      // Gather all superset exercises (in phase-ordered sequence)
       const ssExercises = [];
-      workout.exercises.forEach((e, j) => {
+      orderedExercises.forEach(({ ex: e, i: j }) => {
         if (e.supersetId === ex.supersetId) {
           ssExercises.push(e);
           used.add(j);
