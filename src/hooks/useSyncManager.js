@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useOnlineStatus } from './useOnlineStatus'
-import { pushToCloud, pullFromCloud, mergeOnFirstLogin, getPendingSyncCount } from '../lib/syncService'
+import { pushToCloud, pullFromCloud, mergeOnFirstLogin, getPendingSyncCount, pushExerciseInstructionsToCloud } from '../lib/syncService'
 import { supabase } from '../lib/supabase'
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const LOCAL_SYNC_KEY = 'tonnage-local-last-synced'
+const INSTRUCTIONS_PUSHED_KEY = 'tonnage-instructions-pushed-v1'
 
 export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChanged) {
   const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'error' | 'offline'
@@ -42,6 +43,30 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
     }, 30000)
     return () => clearTimeout(timeout)
   }, [syncStatus])
+
+  // One-time: push exercise instructions to cloud after login
+  // Runs once per device (tracked via localStorage flag) to backfill
+  // instructions that were missing when exercises were first uploaded.
+  useEffect(() => {
+    if (!user || !isOnline || !supabase) return
+    if (localStorage.getItem(INSTRUCTIONS_PUSHED_KEY)) return // already done
+
+    const pushInstructions = async () => {
+      try {
+        const result = await pushExerciseInstructionsToCloud(user.id)
+        if (!result.error) {
+          localStorage.setItem(INSTRUCTIONS_PUSHED_KEY, new Date().toISOString())
+          console.log(`One-time instructions push complete: ${result.updated} exercises updated`)
+        }
+      } catch (err) {
+        console.warn('Instructions push failed (will retry next session):', err)
+      }
+    }
+
+    // Delay slightly so it doesn't compete with initial sync
+    const timer = setTimeout(pushInstructions, 5000)
+    return () => clearTimeout(timer)
+  }, [user, isOnline])
 
   // Core sync function — uses LOCAL timestamp so each device pulls everything it hasn't seen
   const doSync = useCallback(async () => {

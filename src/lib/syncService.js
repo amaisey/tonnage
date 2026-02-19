@@ -347,7 +347,7 @@ export async function mergeOnFirstLogin(userId) {
     }
   }
 
-  // Upload exercises
+  // Upload exercises (include instructions so cloud has the full data)
   const exercises = JSON.parse(localStorage.getItem('workout-exercises') || '[]')
   if (exercises.length > 0) {
     const rows = exercises.map((e, idx) => ({
@@ -356,11 +356,15 @@ export async function mergeOnFirstLogin(userId) {
       name: e.name,
       body_part: e.bodyPart || 'Other',
       category: e.category || 'other',
+      instructions: e.instructions || '',
+      updated_at: new Date().toISOString(),
     }))
 
+    // ignoreDuplicates: false → update existing cloud exercises with local data
+    // (including instructions that may have been missing)
     const { error } = await supabase
       .from('exercises')
-      .upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: false })
 
     if (error) console.error('Exercise upload error:', error)
   }
@@ -423,11 +427,16 @@ export async function mergeOnFirstLogin(userId) {
 export async function replaceCloudWorkouts(userId) {
   if (!supabase || !userId) return
 
-  // Step 1: Hard-delete ALL cloud workouts for this user
-  const { error: deleteError } = await supabase
-    .from('workouts')
-    .delete()
-    .eq('user_id', userId)
+  const REPLACE_TIMEOUT_MS = 20000
+
+  // Step 1: Hard-delete ALL cloud workouts for this user (with timeout)
+  const { error: deleteError } = await Promise.race([
+    supabase
+      .from('workouts')
+      .delete()
+      .eq('user_id', userId),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Cloud delete timeout')), REPLACE_TIMEOUT_MS))
+  ])
 
   if (deleteError) {
     console.error('Cloud workout delete error:', deleteError)
@@ -448,10 +457,13 @@ export async function replaceCloudWorkouts(userId) {
     // Override updated_at to use consistent timestamp across batches
     batch.forEach(row => { row.updated_at = replaceTimestamp })
 
-    const { data, error } = await supabase
-      .from('workouts')
-      .insert(batch)
-      .select('id, local_id')
+    const { data, error } = await Promise.race([
+      supabase
+        .from('workouts')
+        .insert(batch)
+        .select('id, local_id'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Cloud insert timeout')), REPLACE_TIMEOUT_MS))
+    ])
 
     if (error) {
       console.error('Batch insert error:', error)
@@ -751,6 +763,49 @@ export async function directDeleteWorkout(userId, localId) {
 }
 
 // ============================================================
+// One-time: push local exercise instructions to cloud
+// Fixes exercises that were uploaded without instructions.
+// Safe to run multiple times — only updates, never deletes.
+// ============================================================
+export async function pushExerciseInstructionsToCloud(userId) {
+  if (!supabase || !userId) return { updated: 0, error: null }
+
+  const exercises = JSON.parse(localStorage.getItem('workout-exercises') || '[]')
+  const withInstructions = exercises.filter(e => e.instructions && e.instructions.trim().length > 0)
+
+  if (withInstructions.length === 0) return { updated: 0, error: null }
+
+  // Batch update in chunks of 50
+  const BATCH = 50
+  let updated = 0
+
+  for (let i = 0; i < withInstructions.length; i += BATCH) {
+    const batch = withInstructions.slice(i, i + BATCH).map((e, idx) => ({
+      user_id: userId,
+      local_id: String(idx + i),
+      name: e.name,
+      body_part: e.bodyPart || 'Other',
+      category: e.category || 'other',
+      instructions: e.instructions,
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error } = await supabase
+      .from('exercises')
+      .upsert(batch, { onConflict: 'user_id,name', ignoreDuplicates: false })
+
+    if (error) {
+      console.error('Push instructions batch error:', error)
+      return { updated, error: error.message }
+    }
+    updated += batch.length
+  }
+
+  console.log(`Pushed instructions for ${updated} exercises to cloud`)
+  return { updated, error: null }
+}
+
+// ============================================================
 // Queue a sync entry for later push
 // ============================================================
 export async function queueSyncEntry(entityType, entityId, action, payload) {
@@ -789,10 +844,17 @@ function mergeIntoLocalStorage(key, cloudRecords, dedupeField) {
       existingMap.set(dedupeValue, localShape)
       added++
     } else {
-      // Cloud wins on conflict — update local
+      // Cloud wins on conflict — update local, BUT preserve richer local
+      // instructions if cloud has empty/missing instructions (prevents
+      // default exercise instructions from being wiped by stale cloud data)
       const idx = existing.findIndex(e => e[dedupeField] === dedupeValue)
       if (idx !== -1) {
-        existing[idx] = { ...existing[idx], ...localShape }
+        const merged = { ...existing[idx], ...localShape }
+        // For exercises: keep local instructions if cloud's are empty but local has content
+        if (key === 'workout-exercises' && !localShape.instructions && existing[idx].instructions) {
+          merged.instructions = existing[idx].instructions
+        }
+        existing[idx] = merged
       }
     }
   }
