@@ -3,6 +3,8 @@ import { db } from '../db/workoutDb'
 
 // Timeout for each fetchAll operation (covers all pages for one table)
 const FETCH_TIMEOUT_MS = 30000
+// Timeout for individual push operations
+const PUSH_TIMEOUT_MS = 15000
 
 // ============================================================
 // Map local camelCase shapes → cloud snake_case columns
@@ -70,6 +72,14 @@ export async function pushToCloud(userId) {
   const errors = []
   const log = [`queue: ${queue.length} items`]
 
+  // Helper: run a Supabase query with a timeout
+  const withTimeout = (promise, ms = PUSH_TIMEOUT_MS) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Push timeout')), ms))
+    ])
+  }
+
   for (const item of queue) {
     try {
       const table = item.entityType + 's' // 'workout' → 'workouts'
@@ -82,14 +92,14 @@ export async function pushToCloud(userId) {
         // Exercises use (user_id, name) as unique key; everything else uses (user_id, local_id)
         const conflictKey = item.entityType === 'exercise' ? 'user_id,name' : 'user_id,local_id'
 
-        const { data, error } = await supabase
+        const { data, error } = await withTimeout(supabase
           .from(table)
           .upsert(cloudRow, {
             onConflict: conflictKey,
             ignoreDuplicates: false
           })
           .select('id')
-          .single()
+          .single())
 
         if (error) {
           log.push(`UPSERT ERROR: ${error.code} ${error.message}`)
@@ -116,7 +126,7 @@ export async function pushToCloud(userId) {
           query = query.eq('local_id', String(item.entityId))
         }
 
-        const { error } = await query
+        const { error } = await withTimeout(query)
 
         if (error) {
           log.push(`UPDATE ERROR: ${error.code} ${error.message}`)
@@ -136,7 +146,7 @@ export async function pushToCloud(userId) {
           query = query.eq('local_id', String(item.entityId))
         }
 
-        const { error } = await query
+        const { error } = await withTimeout(query)
 
         if (error) {
           log.push(`DELETE ERROR: ${error.code} ${error.message}`)
@@ -222,12 +232,20 @@ export async function pullFromCloud(userId, lastSyncedAt) {
   }
 
   // Fetch all updated records in parallel (paginated)
-  const [workoutsData, exercisesData, templatesData, foldersData] = await Promise.all([
+  // Use Promise.allSettled so one table failing doesn't block the others
+  const results = await Promise.allSettled([
     fetchAll('workouts', { order: { column: 'date', ascending: false } }),
     fetchAll('exercises'),
     fetchAll('templates'),
     fetchAll('folders'),
   ])
+  const workoutsData = results[0].status === 'fulfilled' ? results[0].value : []
+  const exercisesData = results[1].status === 'fulfilled' ? results[1].value : []
+  const templatesData = results[2].status === 'fulfilled' ? results[2].value : []
+  const foldersData = results[3].status === 'fulfilled' ? results[3].value : []
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') console.warn(`Pull failed for table ${['workouts','exercises','templates','folders'][i]}:`, r.reason)
+  })
 
   let pulled = 0
 

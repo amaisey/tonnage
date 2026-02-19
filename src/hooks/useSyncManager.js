@@ -88,14 +88,18 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
     }
   }, [user, isOnline, refreshPendingCount])
 
-  // Handle first login merge
+  // Handle first login merge (with timeout to prevent infinite freeze)
   useEffect(() => {
     if (!isFirstLogin || !user || !isOnline) return
 
     const doMerge = async () => {
       setSyncStatus('syncing')
       try {
-        await mergeOnFirstLogin(user.id)
+        // Timeout the entire merge to prevent infinite freeze
+        await Promise.race([
+          mergeOnFirstLogin(user.id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Merge timeout')), 45000))
+        ])
         clearFirstLogin?.()
         const now = new Date().toISOString()
         localStorage.setItem(LOCAL_SYNC_KEY, now)
@@ -106,6 +110,9 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
       } catch (err) {
         console.error('First login merge error:', err)
         setSyncStatus('error')
+        // Still clear first login flag to prevent retry loops
+        clearFirstLogin?.()
+        setTimeout(() => setSyncStatus('idle'), 5000)
       }
       refreshPendingCount()
     }
