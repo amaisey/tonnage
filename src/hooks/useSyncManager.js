@@ -21,6 +21,12 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
     onDataChangedRef.current = onDataChanged
   }, [onDataChanged])
 
+  // Hydrate lastSynced from localStorage on mount (fixes "last synced: never" after refresh)
+  useEffect(() => {
+    const stored = localStorage.getItem(LOCAL_SYNC_KEY)
+    if (stored) setLastSynced(stored)
+  }, [])
+
   // Update pending count periodically
   const refreshPendingCount = useCallback(async () => {
     try {
@@ -198,6 +204,7 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
     syncStatus,
     lastSynced,
     pendingCount,
-    syncNow
+    syncNow,
+    refreshPendingCount
   }
 }

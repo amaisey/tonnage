@@ -375,12 +375,24 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
   }, [numpadState, onNumpadStateChange]);
 
   // Auto-scroll input into view when numpad opens so input isn't hidden behind it
+  // Uses same intelligent positioning as SetInputRow — measures numpad height dynamically
   useEffect(() => {
     if (numpadState) {
       setTimeout(() => {
         const el = dragRefs.current[numpadState.exIndex];
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (!el) return;
+        const container = el.closest('[style*="overflow"]') || el.parentElement?.parentElement?.parentElement;
+        if (container) {
+          const elementRect = el.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const scrollTop = container.scrollTop;
+          // Dynamically measure numpad height
+          const numpad = document.querySelector('.fixed.inset-x-0.bottom-0.bg-gray-900.border-t');
+          const numpadHeight = numpad ? numpad.getBoundingClientRect().height : 280;
+          // Position in visible area above numpad with breathing room
+          const visibleHeight = containerRect.height - numpadHeight;
+          const targetPosition = scrollTop + (elementRect.top - containerRect.top) - Math.min(visibleHeight * 0.4, 160);
+          container.scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
         }
       }, 150);
     }

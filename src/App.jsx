@@ -67,7 +67,7 @@ function App() {
     // Refresh history and any other data-dependent UI after sync pulls new data
     setHistoryRefreshKey(k => k + 1);
   }, []);
-  const { syncStatus, lastSynced, pendingCount, syncNow } = useSyncManager(user, isFirstLogin, clearFirstLogin, handleSyncDataChanged);
+  const { syncStatus, lastSynced, pendingCount, syncNow, refreshPendingCount } = useSyncManager(user, isFirstLogin, clearFirstLogin, handleSyncDataChanged);
 
   // Bug #8: Check if default templates need updating when app loads
   useEffect(() => {
@@ -214,7 +214,8 @@ function App() {
               console.warn('Direct push failed, queued for retry:', result.reason);
             }
           })
-          .catch(err => console.error('Auto-upload error:', err));
+          .catch(err => console.error('Auto-upload error:', err))
+          .finally(() => refreshPendingCount());
       }
     } catch (err) {
       console.error('Error saving workout:', err);
