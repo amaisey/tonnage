@@ -210,6 +210,9 @@ function App() {
           .then(result => {
             if (result.success) {
               console.log('Workout auto-uploaded to cloud:', result.cloudId);
+              // Write local sync timestamp so Settings doesn't show "last synced: never" after refresh
+              const now = new Date().toISOString();
+              localStorage.setItem('tonnage-local-last-synced', now);
             } else {
               console.warn('Direct push failed, queued for retry:', result.reason);
             }
