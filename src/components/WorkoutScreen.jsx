@@ -2176,8 +2176,8 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-3.5 bg-green-500/70 hover:w-5 hover:bg-green-500'}`}
           style={{
-            top: numpadState ? '13%' : '30%',
-            height: numpadState ? '28%' : '38%',
+            top: numpadState ? '20%' : '30%',
+            height: numpadState ? '18%' : '38%',
             borderRadius: '8px 0 0 8px',
           }}
         >
