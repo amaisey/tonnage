@@ -1,5 +1,5 @@
-const CACHE_NAME = 'workout-tracker-v5';
-const APP_VERSION = '1.0.0';
+const CACHE_NAME = 'workout-tracker-v6';
+const APP_VERSION = '1.1.0';
 
 const urlsToCache = [
   '/',
