@@ -2,13 +2,14 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { Icons } from './Icons';
 import { BODY_PARTS, CATEGORIES, BAND_COLORS, EXERCISE_TYPES, EXERCISE_PHASES } from '../data/constants';
 import { formatDuration, getDefaultSetForCategory, generateTemplateAIExport, generateTemplateAIBoilerplate, generateTemplateSummary, generateExerciseLibraryExport, generateFolderExportData } from '../utils/helpers';
-import { ExerciseSearchModal, CreateFolderModal } from './SharedComponents';
+import { ExerciseSearchModal, CreateFolderModal, ExerciseDetailModal } from './SharedComponents';
 import { CreateTemplateModal, ImportModal } from './ExercisesScreen';
 
 // Template Detail Modal - shows full template when clicking on summary
-const TemplateDetailModal = ({ template, onClose, onStart, onEdit, hasActiveWorkout }) => {
+const TemplateDetailModal = ({ template, onClose, onStart, onEdit, hasActiveWorkout, exercises }) => {
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const [copySuccess, setCopySuccess] = useState(''); // '' | 'ai' | 'text'
+  const [exerciseDetailModal, setExerciseDetailModal] = useState(null); // exercise to show detail for
 
   const copyToClipboard = async (type) => {
     try {
@@ -166,7 +167,10 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit, hasActiveWork
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <div className="w-6 h-6 rounded-full bg-teal-500/30 flex items-center justify-center text-teal-400 text-xs font-bold">{exIdx + 1}</div>
-                                      <span className="font-medium text-white">{exercise.name}</span>
+                                      <button
+                                        onClick={() => setExerciseDetailModal(exercise)}
+                                        className="font-medium text-white hover:text-cyan-400 transition-colors text-left"
+                                      >{exercise.name}</button>
                                     </div>
                                   </div>
                                   <div className="text-xs text-gray-400 mt-1 ml-8">
@@ -195,7 +199,10 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit, hasActiveWork
                       return (
                         <div key={group.index} className="bg-gray-800/60 backdrop-blur-sm border border-white/20 rounded-xl p-3">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium text-white">{group.exercise.name}</span>
+                            <button
+                              onClick={() => setExerciseDetailModal(group.exercise)}
+                              className="font-medium text-white hover:text-cyan-400 transition-colors text-left"
+                            >{group.exercise.name}</button>
                           </div>
                           <div className="text-xs text-gray-400 mt-1">
                             {group.exercise.bodyPart} • {group.exercise.sets?.length || 3} sets • Rest {formatDuration(group.exercise.restTime || 90)}
@@ -223,6 +230,20 @@ const TemplateDetailModal = ({ template, onClose, onStart, onEdit, hasActiveWork
         })}
         </div>
       </div>
+
+      {/* Item 8: Exercise how-to modal — tap any exercise name to see instructions */}
+      {exerciseDetailModal && (
+        <ExerciseDetailModal
+          exercise={{
+            ...exerciseDetailModal,
+            // Merge latest instructions from the exercise library so edits show immediately
+            instructions: (exercises?.find(e => e.name === exerciseDetailModal.name)?.instructions)
+              || exerciseDetailModal.instructions || '',
+          }}
+          history={[]}
+          onClose={() => setExerciseDetailModal(null)}
+        />
+      )}
     </div>
   );
 };
@@ -991,7 +1012,7 @@ const TemplatesScreen = ({ templates, folders, onStartTemplate, hasActiveWorkout
       {showCreateFolder && <CreateFolderModal parentId={currentFolderId} onSave={onAddFolder} onClose={() => setShowCreateFolder(false)} />}
       {showCreateTemplate && <CreateTemplateModal folderId={currentFolderId} allExercises={exercises} onSave={t => { onImport(t); setShowCreateTemplate(false); }} onClose={() => setShowCreateTemplate(false)} />}
       {editingTemplate && <EditTemplateModal template={editingTemplate} onSave={onUpdateTemplate} onDelete={onDeleteTemplate} onClose={() => setEditingTemplate(null)} allExercises={exercises} />}
-      {viewingTemplate && <TemplateDetailModal template={viewingTemplate} onClose={() => setViewingTemplate(null)} onStart={onStartTemplate} onEdit={setEditingTemplate} hasActiveWorkout={hasActiveWorkout} />}
+      {viewingTemplate && <TemplateDetailModal template={viewingTemplate} onClose={() => setViewingTemplate(null)} onStart={onStartTemplate} onEdit={setEditingTemplate} hasActiveWorkout={hasActiveWorkout} exercises={exercises} />}
 
       {/* Rename Folder Modal */}
       {renamingFolder && (

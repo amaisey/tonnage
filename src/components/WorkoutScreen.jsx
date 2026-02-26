@@ -137,11 +137,14 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       source.start(0);
       audioInitialized.current = true;
 
-      // Pre-load HTML5 Audio fallback (but do NOT play it — that pauses music)
-      // It will only be used when AudioContext is suspended (screen lock/app switch)
+      // Pre-load HTML5 Audio fallback — deliberately NO preload so iOS doesn't
+      // claim the audio session at init time. Claiming the session early is what
+      // causes Spotify/Apple Music to pause when the timer fires.
+      // The element is created here for reuse but audio data loads on first play.
       if (!alarmAudioRef.current) {
         const audio = new Audio('/sounds/timer-complete.wav');
-        audio.preload = 'auto';
+        // Do NOT set preload='auto' — that claims the iOS audio session immediately
+        // and causes background music to pause even before any sound plays.
         audio.volume = 0.5;
         alarmAudioRef.current = audio;
       }
@@ -157,24 +160,32 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
     }
   };
 
-  // Keep trying to unlock on every touch/click until it succeeds.
-  // iOS sometimes needs multiple gesture-triggered attempts.
+  // Keep trying to unlock on every touch/click — NEVER remove these listeners.
+  // iOS can re-suspend the AudioContext after interruptions (phone calls, app switches,
+  // lock screen) so we must keep re-activating on every gesture.
+  // Also re-activate when the app returns to the foreground via visibilitychange.
   useEffect(() => {
     const unlock = async () => {
       await initAudio();
-      if (audioInitialized.current && audioContextRef.current?.state === 'running') {
-        document.removeEventListener('touchstart', unlock);
-        document.removeEventListener('touchend', unlock);
-        document.removeEventListener('click', unlock);
+    };
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible') {
+        // Re-resume AudioContext when returning from background — it may have
+        // been suspended by iOS when the app was backgrounded.
+        if (audioContextRef.current?.state === 'suspended') {
+          try { await audioContextRef.current.resume(); } catch (e) {}
+        }
       }
     };
     document.addEventListener('touchstart', unlock);
     document.addEventListener('touchend', unlock);
     document.addEventListener('click', unlock);
+    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       document.removeEventListener('touchstart', unlock);
       document.removeEventListener('touchend', unlock);
       document.removeEventListener('click', unlock);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
@@ -1151,13 +1162,28 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
       // If no previous completions, fall back to workout start time
       setLastCompletionTimestamp(latestCompletedAt || activeWorkout.startTime);
 
-      // Recalculate expectedNext — find the first incomplete set
+      // Bug #19 fix: Recalculate expectedNext after uncompleting a set.
+      // Previous code used a plain array-order scan, which found ex1.S1 instead
+      // of the just-uncompleted ex2.S0 in superset scenarios.
+      // For superset exercises: always return to the uncompleted set itself —
+      // the round-robin should restart from that point.
+      // For non-superset exercises: use a phase-order scan to find the true
+      // first incomplete set, which respects warmup → workout → cooldown ordering.
       let newExpected = null;
-      for (let i = 0; i < updated.exercises.length; i++) {
-        const nextSetIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
-        if (nextSetIdx >= 0) {
-          newExpected = { exIndex: i, setIndex: nextSetIdx };
-          break;
+      if (exercise.supersetId) {
+        // Superset: the just-uncompleted set IS the next expected set
+        newExpected = { exIndex, setIndex };
+      } else {
+        // Non-superset: phase-order-aware first incomplete scan
+        const phasesUndo = { warmup: [], workout: [], cooldown: [] };
+        updated.exercises.forEach((e, idx) => { phasesUndo[e.phase || 'workout'].push(idx); });
+        const orderedUndo = [...phasesUndo.warmup, ...phasesUndo.workout, ...phasesUndo.cooldown];
+        for (const i of orderedUndo) {
+          const nextSetIdx = updated.exercises[i].sets.findIndex(s => !s.completed);
+          if (nextSetIdx >= 0) {
+            newExpected = { exIndex: i, setIndex: nextSetIdx };
+            break;
+          }
         }
       }
       setExpectedNext(newExpected);
@@ -2235,9 +2261,16 @@ const WorkoutScreen = ({ activeWorkout, setActiveWorkout, onFinish, onCancel, ex
             }
           }}
           className={`fixed right-0 z-30 flex items-center justify-center transition-all duration-300 ease-out ${completionFlash ? 'w-12 bg-green-400 shadow-lg shadow-green-400/50' : 'w-3.5 bg-green-500/70 hover:w-5 hover:bg-green-500'}`}
-          style={{
-            top: numpadState ? '20%' : '30%',
-            height: numpadState ? '18%' : '38%',
+          style={numpadState ? {
+            // Numpad open: fill the visible zone between header (~64px) and numpad (~285px)
+            // This prevents the bar from shrinking to a useless sliver when the keyboard appears.
+            top: 'calc(env(safe-area-inset-top, 0px) + 64px)',
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 285px)',
+            height: 'auto',
+            borderRadius: '8px 0 0 8px',
+          } : {
+            top: '30%',
+            height: '38%',
             borderRadius: '8px 0 0 8px',
           }}
         >

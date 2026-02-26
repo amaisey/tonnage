@@ -18,7 +18,16 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [appVersion, setAppVersion] = useState(null); // Item 9: version display
   const { signOut } = useAuth();
+
+  // Item 9: Fetch build version from version.json (stamped at build time by Vite plugin)
+  useEffect(() => {
+    fetch('/version.json')
+      .then(r => r.json())
+      .then(d => setAppVersion(d.version || d.buildTime || null))
+      .catch(() => {}); // non-fatal — version just won't show
+  }, []);
 
   // Sign out and close modal for clear visual feedback
   const handleSignOut = () => {
@@ -317,7 +326,12 @@ export function SettingsModal({ onClose, exercises, templates, folders, onRestor
       <div className="relative z-20 bg-gray-900/90 backdrop-blur-xl rounded-2xl w-full max-w-md border border-white/20 overflow-hidden mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <h2 className="text-xl font-bold text-white">Settings</h2>
+          <div>
+            <h2 className="text-xl font-bold text-white">Settings</h2>
+            {appVersion && (
+              <div className="text-[10px] text-gray-600 mt-0.5">v{appVersion}</div>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
             <Icons.X />
           </button>
