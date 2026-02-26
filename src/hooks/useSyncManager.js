@@ -37,15 +37,16 @@ export function useSyncManager(user, isFirstLogin, clearFirstLogin, onDataChange
     }
   }, [])
 
-  // Safety: if syncStatus is 'syncing' for more than 30s, reset to idle
-  // This catches edge cases where doSync errors silently or isSyncingRef gets stuck
+  // Safety: if syncStatus is 'syncing' for more than 30s, force-reset both the
+  // UI status AND isSyncingRef. Without resetting the ref, future sync calls are
+  // permanently blocked even after the UI recovers — the root cause of the
+  // mid-workout freeze where the app hangs and never resumes syncing.
   useEffect(() => {
     if (syncStatus !== 'syncing') return
     const timeout = setTimeout(() => {
-      if (syncStatus === 'syncing' && !isSyncingRef.current) {
-        console.warn('Sync status stuck at syncing — resetting to idle')
-        setSyncStatus('idle')
-      }
+      console.warn('Sync stuck for 30s — force-resetting isSyncingRef and status to idle')
+      isSyncingRef.current = false  // unblock future sync calls
+      setSyncStatus('idle')
     }, 30000)
     return () => clearTimeout(timeout)
   }, [syncStatus])
