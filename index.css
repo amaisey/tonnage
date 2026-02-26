@@ -32,6 +32,11 @@ html, body {
 :root {
   --sat: env(safe-area-inset-top);
   --sab: env(safe-area-inset-bottom, 34px);
+  /* Force dark color-scheme so older iOS Safari applies dark system colors
+     (scrollbars, form inputs, etc.) and doesn't bleed light-mode defaults
+     into the UI — which is the root cause of white-on-white button rendering
+     on older iPhone models. */
+  color-scheme: dark;
 }
 
 ::-webkit-scrollbar {
@@ -47,4 +52,38 @@ html, body {
 button {
   -webkit-user-select: none;
   user-select: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: transparent;
+  border: none;
+  /* Explicitly declare a fallback color so older iOS Safari doesn't default
+     to the system button color (white) when CSS custom properties fail to
+     cascade. Tailwind utility classes (text-white, text-gray-400, etc.) will
+     still override this; the fallback only fires when they fail to resolve. */
+  color: #e5e7eb; /* gray-200 — visible on both light and dark backgrounds */
+  font: inherit;
+  padding: 0;
+}
+
+/* Reset select elements for iOS too */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Line clamp utility (fallback for older Tailwind) */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Update toast animation */
+@keyframes slide-down {
+  from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
 }
